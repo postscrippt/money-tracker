@@ -477,7 +477,7 @@ function renderBars() {
   groups.forEach((g, i) => {
     const x0 = padL + i * bw, x = x0 + gap / 2, w = bw - gap;
     let yb = padT + ih;
-    svg += `<g class="bar${g.active ? ' active' : ''}" data-i="${i}" data-tip="${tipFor(g.title, g.total, g.parts)}">`;
+    svg += `<g class="bar${g.active ? ' active' : ''}" data-i="${i}">`;
     svg += `<rect class="hit" x="${x0}" y="${padT}" width="${bw}" height="${ih}" rx="4"/>`;
     g.parts.forEach(p => {
       const h = (p.amount / max) * ih;

@@ -14,7 +14,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { background: #fff; overflow-x: clip; }
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
 body {
   margin: 0;
   color: var(--ink);
