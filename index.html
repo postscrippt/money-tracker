@@ -20,6 +20,7 @@
   </header>
 
   <main>
+    <div class="page" id="page-home">
     <section class="card add">
       <div class="seg" id="kindToggle">
         <button type="button" data-kind="expense" class="on">Expense</button>
@@ -56,13 +57,19 @@
           <button type="button" data-k="back" aria-label="Backspace"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7z"/><path d="M12.5 9.5l5 5M17.5 9.5l-5 5"/></svg></button>
           <button type="button" data-k="=" class="eq">=</button>
         </div>
-        <div id="catChips" class="chips"></div>
-        <input id="source" placeholder="Source (e.g. Salary, Freelance)" maxlength="40" hidden>
-        <div class="row">
-          <input id="date" type="date" required aria-label="Date">
-          <input id="note" placeholder="Note (optional)" maxlength="80">
-          <button type="submit" id="submitBtn" class="primary">Add</button>
-          <button type="button" id="cancelEdit" class="ghost" hidden>Cancel</button>
+        <div class="extra" id="entryExtra">
+          <div class="extra-in">
+            <div class="extra-panel">
+              <div id="catChips" class="chips"></div>
+              <input id="source" placeholder="Source (e.g. Salary, Freelance)" maxlength="40" hidden>
+              <div class="row">
+                <input id="date" type="date" required aria-label="Date">
+                <input id="note" placeholder="Note (optional)" maxlength="80">
+                <button type="submit" id="submitBtn" class="primary">Add</button>
+                <button type="button" id="cancelEdit" class="ghost" hidden>Cancel</button>
+              </div>
+            </div>
+          </div>
         </div>
       </form>
     </section>
@@ -73,32 +80,17 @@
     <section class="grid2">
       <div class="card">
         <div class="card-head">
-          <h2>Spending</h2>
-          <div class="seg small" id="chartMode">
-            <button type="button" data-mode="daily" class="on">Daily</button>
-            <button type="button" data-mode="weekly">Weekly</button>
-          </div>
-        </div>
-        <div id="barChart" class="chart"></div>
-      </div>
-      <div class="card">
-        <div class="card-head">
-          <h2>Categories</h2>
-          <label class="toggle"><input type="checkbox" id="pieFixed"> Include fixed</label>
-        </div>
-        <div id="pie" class="pie-wrap"></div>
-      </div>
-    </section>
-
-    <section class="grid2">
-      <div class="card">
-        <div class="card-head">
           <h2>Calendar</h2>
-          <div class="month-nav">
-            <button id="prevMonth" class="icon-btn" aria-label="Previous month">‹</button>
-            <button id="monthLabel" title="Back to today"></button>
-            <button id="nextMonth" class="icon-btn" aria-label="Next month">›</button>
+          <div class="seg small" id="calView">
+            <button type="button" data-view="day" class="on">Daily</button>
+            <button type="button" data-view="week">Weekly</button>
+            <button type="button" data-view="year">Monthly</button>
           </div>
+        </div>
+        <div class="month-nav cal-nav">
+          <button id="prevMonth" class="icon-btn" aria-label="Previous">‹</button>
+          <button id="monthLabel" title="Back to today"></button>
+          <button id="nextMonth" class="icon-btn" aria-label="Next">›</button>
         </div>
         <div id="calSummary" class="cal-summary"></div>
         <div id="calendar"></div>
@@ -108,24 +100,79 @@
         <ul id="dayList" class="list"></ul>
       </div>
     </section>
+    </div>
 
-    <section class="grid2">
-      <div class="card">
-        <div class="card-head"><h2>Fixed costs</h2><span id="fixedTotal" class="muted"></span></div>
-        <ul id="fixedList" class="list"></ul>
-        <form id="fixedForm" class="row" autocomplete="off">
-          <input id="fxName" placeholder="Name (e.g. Rent)" maxlength="30" required>
-          <input id="fxAmount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="฿ Amount" required>
-          <input id="fxDay" type="number" inputmode="numeric" min="1" max="31" placeholder="Due day">
-          <button class="primary">Add</button>
-        </form>
+    <div class="page" id="page-insights" hidden>
+      <div class="page-head">
+        <h2>Insights</h2>
+        <div class="month-nav pm-nav"></div>
       </div>
-      <div class="card">
-        <div class="card-head"><h2>Income</h2><span id="incomeTotal" class="muted"></span></div>
-        <ul id="incomeList" class="list"></ul>
+      <section class="grid2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Spending</h2>
+            <div class="seg small" id="chartMode">
+              <button type="button" data-mode="daily" class="on">Daily</button>
+              <button type="button" data-mode="weekly">Weekly</button>
+            </div>
+          </div>
+          <div id="barChart" class="chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Categories</h2>
+            <label class="toggle"><input type="checkbox" id="pieFixed"> Include fixed</label>
+          </div>
+          <div id="pie" class="pie-wrap"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="page" id="page-income" hidden>
+      <div class="page-head">
+        <h2>Money in / Fixed costs</h2>
+        <div class="month-nav pm-nav"></div>
       </div>
-    </section>
+      <section class="grid2">
+        <div class="card">
+          <div class="card-head"><h2>Fixed costs</h2><span id="fixedTotal" class="muted"></span></div>
+          <ul id="fixedList" class="list"></ul>
+          <form id="fixedForm" class="row" autocomplete="off">
+            <input id="fxName" placeholder="Name (e.g. Rent)" maxlength="30" required>
+            <input id="fxAmount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="฿ Amount" required>
+            <input id="fxDay" type="number" inputmode="numeric" min="1" max="31" placeholder="Due day">
+            <button class="primary">Add</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Income</h2><span id="incomeTotal" class="muted"></span></div>
+          <ul id="incomeList" class="list"></ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="page" id="page-history" hidden>
+      <div class="page-head"><h2>History</h2></div>
+      <section class="card">
+        <ul id="historyList" class="list history"></ul>
+      </section>
+    </div>
   </main>
+
+  <nav class="tabbar" id="tabbar" aria-label="Pages">
+    <button type="button" data-page="home" class="on" aria-current="page">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>Home
+    </button>
+    <button type="button" data-page="insights">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Insights
+    </button>
+    <button type="button" data-page="income">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5"/><path d="M5 20h14"/></svg>Income
+    </button>
+    <button type="button" data-page="history">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg>History
+    </button>
+  </nav>
 
   <dialog id="settings">
     <div class="dlg">

@@ -207,6 +207,8 @@ let chosenCat = state.categories[0].id;
 let editing = null;
 let chartMode = 'daily';
 let barGroups = [];
+let calView = 'day'; // 'day' | 'week' | 'year'
+let page = 'home';
 
 /* ================= queries ================= */
 const catOf = id => state.categories.find(c => c.id === id) || UNCATEGORIZED;
@@ -245,8 +247,10 @@ function tipFor(title, total, parts) {
 
 /* ================= rendering ================= */
 function render() {
-  $('#monthLabel').textContent = monthName(view.y, view.m);
+  $('#monthLabel').textContent = calView === 'year' ? String(view.y) : monthName(view.y, view.m);
+  renderPageNav();
   renderHeadline();
+  renderHistory();
   renderChips();
   renderStats();
   renderBudget();
@@ -258,6 +262,43 @@ function render() {
   renderFixed();
   renderIncome();
   if ($('#settings').open) renderSettings();
+}
+
+// Month switcher shown at the top of the Insights and Income pages.
+function renderPageNav() {
+  document.querySelectorAll('.pm-nav').forEach(el => {
+    el.innerHTML = `<button type="button" class="icon-btn" data-pm="-1" aria-label="Previous month">‹</button>
+      <button type="button" class="pm-label" data-pm="0" title="Back to this month">${esc(monthName(view.y, view.m))}</button>
+      <button type="button" class="icon-btn" data-pm="1" aria-label="Next month">›</button>`;
+  });
+}
+
+// Every expense and income entry, newest day first, grouped by day.
+function renderHistory() {
+  const all = [
+    ...state.expenses.map(e => ({ ...e, k: 'expense' })),
+    ...state.income.map(e => ({ ...e, k: 'income' })),
+  ].sort((a, b) => (a.date === b.date ? b.u - a.u : a.date < b.date ? 1 : -1));
+  if (!all.length) {
+    $('#historyList').innerHTML = '<li class="empty">Nothing logged yet.<br>Add your first expense from Home.</li>';
+    return;
+  }
+  let html = '', last = '';
+  all.forEach(e => {
+    if (e.date !== last) {
+      last = e.date;
+      const d = parse(e.date);
+      const dayTotal = sum(all.filter(x => x.date === e.date && x.k === 'expense'));
+      html += `<li class="day-head"><span>${esc(d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }))}</span><span>${dayTotal ? money(dayTotal) : ''}</span></li>`;
+    }
+    if (e.k === 'expense') {
+      const c = catOf(e.categoryId);
+      html += row(c.color, c.name, e.note, money(e.amount), `expense:${e.id}`);
+    } else {
+      html += row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`);
+    }
+  });
+  $('#historyList').innerHTML = html;
 }
 
 // Big total at the top: everything spent in the viewed month, split into day-to-day and fixed.
@@ -497,6 +538,8 @@ function renderPie() {
 /* ---------- calendar ---------- */
 // Day / week / month totals for the selected day, each with a small category bar.
 function renderCalSummary() {
+  $('#calSummary').hidden = calView !== 'day';
+  if (calView !== 'day') return;
   const d = parse(selected);
   const todayKey = ymd(new Date());
   const start = addDays(d, -((d.getDay() - state.settings.weekStart + 7) % 7));
@@ -526,7 +569,64 @@ function renderCalSummary() {
     box(new Date(view.y, view.m, 1).toLocaleDateString('en-US', { month: 'long' }), monthList, perDay(monthList, monthDays));
 }
 
+// A tile showing a period's total and a small category bar (used by the weekly and monthly views).
+function periodTile(attrs, cls, label, list, sub) {
+  const bar = partsFor(list).map(p => `<span style="flex:${p.amount} 0 0;background:${p.color}"></span>`).join('');
+  const total = sum(list);
+  const tip = total ? ` data-tip="${tipFor(label, total, partsFor(list))}"` : '';
+  return `<button type="button" class="ptile ${cls}" ${attrs}${tip}>
+    <span class="lbl">${esc(label)}</span>
+    <span class="val">${money(total)}</span>
+    <span class="cs-bar">${bar}</span>
+    <span class="sub">${sub}</span>
+  </button>`;
+}
+
+const itemsText = list => `${list.length} item${list.length === 1 ? '' : 's'}`;
+
+function renderWeekTiles() {
+  const { y, m } = view;
+  const ws = state.settings.weekStart;
+  const last = new Date(y, m, daysIn(y, m));
+  const first = new Date(y, m, 1);
+  const todayKey = ymd(new Date());
+  let s = addDays(first, -((first.getDay() - ws + 7) % 7));
+  let html = '<div class="tiles-grid">';
+  while (s <= last) {
+    const e = addDays(s, 6);
+    const sk = ymd(s), ek = ymd(e);
+    const list = state.expenses.filter(x => x.date >= sk && x.date <= ek);
+    const inMonthStart = s < first ? first : s;
+    const cls = [];
+    if (selected >= sk && selected <= ek) cls.push('sel');
+    if (todayKey >= sk && todayKey <= ek) cls.push('now');
+    if (sk > todayKey) cls.push('future');
+    html += periodTile(`data-date="${ymd(inMonthStart)}"`, cls.join(' '), `${shortDate(s)} – ${shortDate(e)}`, list, itemsText(list));
+    s = addDays(s, 7);
+  }
+  $('#calendar').innerHTML = html + '</div>';
+}
+
+function renderYearTiles() {
+  const { y } = view;
+  const t = new Date();
+  let html = '<div class="tiles-grid">';
+  let yearTotal = 0;
+  for (let m = 0; m < 12; m++) {
+    const list = expensesIn(y, m);
+    yearTotal += sum(list);
+    const cls = [];
+    if (m === view.m) cls.push('sel');
+    if (isCurrentMonth(y, m)) cls.push('now');
+    if (y > t.getFullYear() || (y === t.getFullYear() && m > t.getMonth())) cls.push('future');
+    html += periodTile(`data-month="${m}"`, cls.join(' '), new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long' }), list, itemsText(list));
+  }
+  $('#calendar').innerHTML = html + `</div><div class="cal-legend"><span>Total for ${y}: <b>${money(yearTotal)}</b></span></div>`;
+}
+
 function renderCalendar() {
+  if (calView === 'week') return renderWeekTiles();
+  if (calView === 'year') return renderYearTiles();
   const { y, m } = view;
   const n = daysIn(y, m);
   const ws = state.settings.weekStart;
@@ -610,7 +710,7 @@ function renderIncome() {
   $('#incomeTotal').textContent = list.length ? money(sum(list)) : '';
   $('#incomeList').innerHTML = list.length
     ? list.map(e => row('var(--pos)', e.source, [shortDate(parse(e.date)), e.note].filter(Boolean).join(' · '), `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`)).join('')
-    : '<li class="empty">No income this month. Switch the form above to “Income” to add some.</li>';
+    : '<li class="empty">No income this month. Switch the form on Home to “Income” to add some.</li>';
 }
 
 /* ---------- settings ---------- */
@@ -647,7 +747,32 @@ function setKind(k) {
   $('#source').hidden = k !== 'income';
 }
 
+// The categories, date and note stay tucked away until you start typing an amount.
+function setFormOpen(open) {
+  $('#entryExtra').classList.toggle('open', open);
+}
+
+// Tapping anywhere outside the form tucks the panel away, unless an amount is typed or an entry is being edited.
+document.addEventListener('pointerdown', e => {
+  if (editing || $('#amount').value.trim()) return;
+  if (e.target.closest('.add, #toast, dialog')) return;
+  setFormOpen(false);
+});
+
+function showPage(name) {
+  page = name;
+  document.querySelectorAll('.page').forEach(p => { p.hidden = p.id !== 'page-' + name; });
+  document.querySelectorAll('#tabbar button').forEach(b => {
+    b.classList.toggle('on', b.dataset.page === name);
+    if (b.dataset.page === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  $('#headline').hidden = name !== 'home';
+  window.scrollTo(0, 0);
+  render();
+}
+
 function resetForm() {
+  setFormOpen(false);
   editing = null;
   $('#amount').value = '';
   $('#note').value = '';
@@ -663,6 +788,8 @@ function startEdit(ref) {
   const [k, id] = ref.split(':');
   const rec = (k === 'expense' ? state.expenses : state.income).find(x => x.id === id);
   if (!rec) return;
+  if (page !== 'home') showPage('home');
+  setFormOpen(true);
   setKind(k);
   editing = { kind: k, id };
   $('#amount').value = rec.amount;
@@ -749,9 +876,24 @@ function showTip(e) {
 }
 
 /* ================= events ================= */
-$('#prevMonth').onclick = () => { const d = new Date(view.y, view.m - 1, 1); goMonth(d); };
-$('#nextMonth').onclick = () => { const d = new Date(view.y, view.m + 1, 1); goMonth(d); };
+$('#prevMonth').onclick = () => goMonth(calView === 'year' ? new Date(view.y - 1, view.m, 1) : new Date(view.y, view.m - 1, 1));
+$('#nextMonth').onclick = () => goMonth(calView === 'year' ? new Date(view.y + 1, view.m, 1) : new Date(view.y, view.m + 1, 1));
 $('#monthLabel').onclick = () => selectDay(ymd(new Date()));
+
+document.querySelectorAll('#calView button').forEach(b => b.onclick = () => {
+  calView = b.dataset.view;
+  document.querySelectorAll('#calView button').forEach(x => x.classList.toggle('on', x === b));
+  render();
+});
+
+document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => showPage(b.dataset.page));
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-pm]');
+  if (!b) return;
+  const step = Number(b.dataset.pm);
+  goMonth(step === 0 ? new Date() : new Date(view.y, view.m + step, 1));
+});
 function goMonth(d) {
   view = { y: d.getFullYear(), m: d.getMonth() };
   selected = isCurrentMonth(view.y, view.m) ? ymd(new Date()) : ymd(d);
@@ -770,6 +912,10 @@ $('#catChips').onclick = e => {
   chosenCat = b.dataset.id;
   renderChips();
 };
+
+$('#amount').addEventListener('focus', () => setFormOpen(true));
+$('#amount').addEventListener('input', () => setFormOpen(true));
+$('#calcToggle').addEventListener('click', () => setFormOpen(true));
 
 $('#entryForm').onsubmit = e => {
   e.preventDefault();
@@ -841,8 +987,16 @@ $('#barChart').onclick = e => {
 $('#pieFixed').onchange = renderPie;
 
 $('#calendar').onclick = e => {
-  const b = e.target.closest('button.day');
-  if (b) selectDay(b.dataset.date);
+  const b = e.target.closest('button.day, button.ptile');
+  if (!b) return;
+  if (b.dataset.date) selectDay(b.dataset.date);
+  else if (b.dataset.month) {
+    // Jump from the year overview into that month's day-by-day calendar.
+    const d = new Date(view.y, Number(b.dataset.month), 1);
+    calView = 'day';
+    document.querySelectorAll('#calView button').forEach(x => x.classList.toggle('on', x.dataset.view === 'day'));
+    goMonth(d);
+  }
 };
 
 function onListClick(e) {
@@ -853,6 +1007,7 @@ function onListClick(e) {
 }
 $('#dayList').onclick = onListClick;
 $('#incomeList').onclick = onListClick;
+$('#historyList').onclick = onListClick;
 
 $('#fixedForm').onsubmit = e => {
   e.preventDefault();
