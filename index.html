@@ -77,7 +77,7 @@
     <section id="stats"></section>
     <section class="card" id="budgetCard"></section>
 
-    <section class="grid2">
+    <section>
       <div class="card">
         <div class="card-head">
           <h2>Calendar</h2>
@@ -94,10 +94,10 @@
         </div>
         <div id="calSummary" class="cal-summary"></div>
         <div id="calendar"></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2 id="dayTitle"></h2><span id="dayTotal" class="day-total"></span></div>
-        <ul id="dayList" class="list"></ul>
+        <div class="breakdown">
+          <div class="card-head"><h2 id="dayTitle"></h2><span id="dayTotal" class="day-total"></span></div>
+          <ul id="dayList" class="list"></ul>
+        </div>
       </div>
     </section>
     </div>
@@ -121,7 +121,16 @@
         <div class="card">
           <div class="card-head">
             <h2>Categories</h2>
-            <label class="toggle"><input type="checkbox" id="pieFixed"> Include fixed</label>
+            <div class="seg small" id="pieMode">
+              <button type="button" data-mode="month" class="on">Monthly</button>
+              <button type="button" data-mode="week">Weekly</button>
+              <button type="button" data-mode="day">Daily</button>
+            </div>
+          </div>
+          <div class="pie-period muted" id="piePeriod"></div>
+          <div class="card-head">
+            <span></span>
+            <label class="toggle" id="pieFixedLabel"><input type="checkbox" id="pieFixed"> Include fixed</label>
           </div>
           <div id="pie" class="pie-wrap"></div>
         </div>

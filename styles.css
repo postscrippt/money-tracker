@@ -304,6 +304,12 @@ svg text { font-family: inherit; }
 #fixedForm { margin-top: 14px; }
 #fixedForm #fxDay { flex: 0 1 100px; }
 .day-total { font-weight: 700; }
+.breakdown { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.breakdown .list li.bd-bar { display: block; padding: 0 0 6px; border: 0; }
+.breakdown .bd-bar .cs-bar { height: 10px; }
+.breakdown .bd-row { padding: 7px 0; border: 0; }
+.breakdown .bd-row .pct { color: var(--muted); font-size: 13px; }
+.pie-period { font-size: 13px; margin: -4px 0 8px; }
 .muted { color: var(--muted); font-size: 13px; }
 
 /* ---------- settings dialog ---------- */

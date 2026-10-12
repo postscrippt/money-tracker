@@ -206,6 +206,7 @@ let kind = 'expense';
 let chosenCat = state.categories[0].id;
 let editing = null;
 let chartMode = 'daily';
+let pieMode = 'month'; // 'month' | 'week' | 'day'
 let barGroups = [];
 let calView = 'day'; // 'day' | 'week' | 'year'
 let page = 'home';
@@ -498,8 +499,11 @@ function renderBars() {
 function renderPie() {
   const { y, m } = view;
   const el = $('#pie');
-  let slices = partsFor(expensesIn(y, m));
-  if ($('#pieFixed').checked) {
+  const r = periodRange(pieMode);
+  $('#piePeriod').textContent = r.title;
+  $('#pieFixedLabel').hidden = pieMode !== 'month';
+  let slices = partsFor(state.expenses.filter(e => e.date >= r.from && e.date <= r.to));
+  if (pieMode === 'month' && $('#pieFixed').checked) {
     fixedIn(y, m).forEach((f, i) => slices.push({ name: f.name, color: FIXED_SHADES[i % FIXED_SHADES.length], amount: f.amount }));
   }
   slices = slices.filter(s => s.amount > 0).sort((a, b) => b.amount - a.amount);
@@ -523,7 +527,7 @@ function renderPie() {
     offset += len;
   });
   svg += `<text class="pie-total" x="100" y="102" text-anchor="middle">${money(total, total >= 1e5)}</text>`;
-  svg += '<text class="pie-sub" x="100" y="120" text-anchor="middle">this month</text></svg>';
+  svg += `<text class="pie-sub" x="100" y="120" text-anchor="middle">${{ month: 'this month', week: 'this week', day: 'this day' }[pieMode]}</text></svg>`;
   const top = slices[0].amount;
   const legend = slices.map(s => `
     <li>
@@ -573,8 +577,7 @@ function renderCalSummary() {
 function periodTile(attrs, cls, label, list, sub) {
   const bar = partsFor(list).map(p => `<span style="flex:${p.amount} 0 0;background:${p.color}"></span>`).join('');
   const total = sum(list);
-  const tip = total ? ` data-tip="${tipFor(label, total, partsFor(list))}"` : '';
-  return `<button type="button" class="ptile ${cls}" ${attrs}${tip}>
+  return `<button type="button" class="ptile ${cls}" ${attrs}>
     <span class="lbl">${esc(label)}</span>
     <span class="val">${money(total)}</span>
     <span class="cs-bar">${bar}</span>
@@ -651,8 +654,7 @@ function renderCalendar() {
     if (key === todayKey) cls.push('today');
     if (key > todayKey) cls.push('future');
     const style = t ? ` style="background:rgba(${HEAT_RGB},${level.toFixed(3)})"` : '';
-    const tip = t ? ` data-tip="${tipFor(shortDate(parse(key)), t, partsFor(ex.filter(e => e.date === key)))}"` : '';
-    html += `<button type="button" class="${cls.join(' ')}" data-date="${key}"${style}${tip} aria-label="${shortDate(parse(key))}${t ? ', ' + money(t) : ''}">
+    html += `<button type="button" class="${cls.join(' ')}" data-date="${key}"${style} aria-label="${shortDate(parse(key))}${t ? ', ' + money(t) : ''}">
       <span class="dn">${d}</span>${t ? `<span class="amt">${money(t, true)}</span>` : ''}${fixedDays.has(d) ? '<i class="fx"></i>' : ''}
     </button>`;
   }
@@ -660,23 +662,34 @@ function renderCalendar() {
   $('#calendar').innerHTML = html;
 }
 
-/* ---------- selected day ---------- */
-function renderDay() {
+/* ---------- selected period ---------- */
+// The date range a period covers around the selected day: 'day', 'week' or 'month'.
+function periodRange(mode) {
   const d = parse(selected);
-  const ex = state.expenses.filter(e => e.date === selected);
-  const inc = state.income.filter(e => e.date === selected);
-  const dueDay = d.getDate(), n = daysIn(d.getFullYear(), d.getMonth());
-  const fx = fixedIn(d.getFullYear(), d.getMonth()).filter(f => Math.min(f.dueDay, n) === dueDay);
-  $('#dayTitle').textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-  const total = sum(ex);
-  $('#dayTotal').textContent = total ? money(total) : '';
+  if (mode === 'day') return { from: selected, to: selected, title: d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) };
+  if (mode === 'week') {
+    const s = addDays(d, -((d.getDay() - state.settings.weekStart + 7) % 7));
+    const e = addDays(s, 6);
+    return { from: ymd(s), to: ymd(e), title: `${shortDate(s)} – ${shortDate(e)}` };
+  }
+  const p = ymKey(view.y, view.m) + '-';
+  return { from: p + '01', to: p + '31', title: monthName(view.y, view.m) };
+}
 
-  const rows = [
-    ...ex.map(e => { const c = catOf(e.categoryId); return row(c.color, c.name, e.note, money(e.amount), `expense:${e.id}`); }),
-    ...inc.map(e => row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`)),
-    ...fx.map(f => `<li class="fixed-row"><i class="dot" style="background:${FIXED_SHADES[0]}"></i><div class="li-main"><b>${esc(f.name)}</b><small>Fixed cost due</small></div><span class="amt">${money(f.amount)}</span></li>`),
-  ];
-  $('#dayList').innerHTML = rows.length ? rows.join('') : '<li class="empty">Nothing logged for this day.<br>Add something above.</li>';
+// Spending for the picked tile, shown under the calendar and grouped by category.
+function renderDay() {
+  const r = periodRange(calView === 'year' ? 'month' : calView === 'week' ? 'week' : 'day');
+  const ex = state.expenses.filter(e => e.date >= r.from && e.date <= r.to);
+  const total = sum(ex);
+  $('#dayTitle').textContent = r.title;
+  $('#dayTotal').textContent = total ? money(total) : '';
+  if (!ex.length) { $('#dayList').innerHTML = '<li class="empty">Nothing spent in this period.</li>'; return; }
+
+  const parts = partsFor(ex).sort((a, b) => b.amount - a.amount);
+  const bar = parts.map(p => `<span style="flex:${p.amount} 0 0;background:${p.color}"></span>`).join('');
+  $('#dayList').innerHTML = `<li class="bd-bar"><div class="cs-bar">${bar}</div></li>` + parts.map(p =>
+    `<li class="bd-row"><i class="dot" style="background:${p.color}"></i><div class="li-main"><b>${esc(p.name)}</b></div><span class="pct">${Math.round((p.amount / total) * 100)}%</span><span class="amt">${money(p.amount)}</span></li>`
+  ).join('');
 }
 
 function row(color, title, note, amountHtml, ref) {
@@ -985,17 +998,19 @@ $('#barChart').onclick = e => {
   if (g) selectDay(barGroups[Number(g.dataset.i)].key);
 };
 $('#pieFixed').onchange = renderPie;
+document.querySelectorAll('#pieMode button').forEach(b => b.onclick = () => {
+  pieMode = b.dataset.mode;
+  document.querySelectorAll('#pieMode button').forEach(x => x.classList.toggle('on', x === b));
+  renderPie();
+});
 
 $('#calendar').onclick = e => {
   const b = e.target.closest('button.day, button.ptile');
   if (!b) return;
   if (b.dataset.date) selectDay(b.dataset.date);
   else if (b.dataset.month) {
-    // Jump from the year overview into that month's day-by-day calendar.
-    const d = new Date(view.y, Number(b.dataset.month), 1);
-    calView = 'day';
-    document.querySelectorAll('#calView button').forEach(x => x.classList.toggle('on', x.dataset.view === 'day'));
-    goMonth(d);
+    // Pick that month and show its breakdown under the tiles.
+    goMonth(new Date(view.y, Number(b.dataset.month), 1));
   }
 };
 
