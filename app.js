@@ -206,6 +206,7 @@ let kind = 'expense';
 let chosenCat = state.categories[0].id;
 let editing = null;
 let chartMode = 'daily';
+let catFilter; // category id (null = Uncategorized) the payments list is filtered to; undefined = all
 let pieMode = 'month'; // 'month' | 'week' | 'day'
 let barGroups = [];
 let calView = 'day'; // 'day' | 'week' | 'year'
@@ -676,20 +677,51 @@ function periodRange(mode) {
   return { from: p + '01', to: p + '31', title: monthName(view.y, view.m) };
 }
 
-// Spending for the picked tile, shown under the calendar and grouped by category.
+// Category breakdown (bar + list) and the editable payments list for the picked day / week / month.
 function renderDay() {
-  const r = periodRange(calView === 'year' ? 'month' : calView === 'week' ? 'week' : 'day');
+  const mode = calView === 'year' ? 'month' : calView === 'week' ? 'week' : 'day';
+  const r = periodRange(mode);
   const ex = state.expenses.filter(e => e.date >= r.from && e.date <= r.to);
   const total = sum(ex);
-  $('#dayTitle').textContent = r.title;
-  $('#dayTotal').textContent = total ? money(total) : '';
-  if (!ex.length) { $('#dayList').innerHTML = '<li class="empty">Nothing spent in this period.</li>'; return; }
+  if (catFilter !== undefined && !ex.some(e => e.categoryId === catFilter)) catFilter = undefined;
 
-  const parts = partsFor(ex).sort((a, b) => b.amount - a.amount);
+  $('#catTitle').textContent = `Categories · ${r.title}`;
+  $('#catTotal').textContent = total ? money(total) : '';
+  const parts = [...new Set(ex.map(e => e.categoryId))].map(id => ({ id, ...catOf(id), amount: sum(ex.filter(e => e.categoryId === id)) }))
+    .sort((a, b) => b.amount - a.amount);
   const bar = parts.map(p => `<span style="flex:${p.amount} 0 0;background:${p.color}"></span>`).join('');
-  $('#dayList').innerHTML = `<li class="bd-bar"><div class="cs-bar">${bar}</div></li>` + parts.map(p =>
-    `<li class="bd-row"><i class="dot" style="background:${p.color}"></i><div class="li-main"><b>${esc(p.name)}</b></div><span class="pct">${Math.round((p.amount / total) * 100)}%</span><span class="amt">${money(p.amount)}</span></li>`
-  ).join('');
+  $('#catList').innerHTML = parts.length
+    ? `<li class="bd-bar"><div class="cs-bar">${bar}</div></li>` + parts.map(p =>
+      `<li class="bd-row${p.id === catFilter ? ' on' : ''}" data-cat="${esc(p.id == null ? '' : p.id)}" data-none="${p.id == null ? 1 : ''}" tabindex="0"><i class="dot" style="background:${p.color}"></i><div class="li-main"><b>${esc(p.name)}</b></div><span class="pct">${Math.round((p.amount / total) * 100)}%</span><span class="amt">${money(p.amount)}</span></li>`).join('')
+    : '<li class="empty">Nothing spent in this period.</li>';
+
+  const shown = catFilter === undefined ? ex : ex.filter(e => e.categoryId === catFilter);
+  const filterNote = catFilter === undefined ? '' : ` · ${catOf(catFilter).name}`;
+  $('#dayTitle').textContent = r.title + filterNote;
+  $('#dayTotal').textContent = shown.length ? money(sum(shown)) : '';
+
+  const entry = e => { const c = catOf(e.categoryId); return row(c.color, c.name, e.note, money(e.amount), `expense:${e.id}`); };
+  let html = '';
+  if (mode === 'day') {
+    const d = parse(selected), n = daysIn(d.getFullYear(), d.getMonth());
+    const inc = catFilter === undefined ? state.income.filter(e => e.date === selected) : [];
+    const fx = catFilter === undefined ? fixedIn(d.getFullYear(), d.getMonth()).filter(f => Math.min(f.dueDay, n) === d.getDate()) : [];
+    html = [
+      ...shown.map(entry),
+      ...inc.map(e => row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`)),
+      ...fx.map(f => `<li class="fixed-row"><i class="dot" style="background:${FIXED_SHADES[0]}"></i><div class="li-main"><b>${esc(f.name)}</b><small>Fixed cost due</small></div><span class="amt">${money(f.amount)}</span></li>`),
+    ].join('');
+  } else {
+    let last = '';
+    [...shown].sort((a, b) => (a.date === b.date ? b.u - a.u : a.date < b.date ? 1 : -1)).forEach(e => {
+      if (e.date !== last) {
+        last = e.date;
+        html += `<li class="day-head"><span>${esc(parse(e.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</span><span>${money(sum(shown.filter(x => x.date === e.date)))}</span></li>`;
+      }
+      html += entry(e);
+    });
+  }
+  $('#dayList').innerHTML = html || '<li class="empty">Nothing logged for this period.<br>Add something above.</li>';
 }
 
 function row(color, title, note, amountHtml, ref) {
@@ -1021,6 +1053,22 @@ function onListClick(e) {
   else if (b.dataset.del) deleteEntry(b.dataset.del);
 }
 $('#dayList').onclick = onListClick;
+
+// Tap a category to filter the payments list to it; tap again to clear.
+function toggleCatFilter(e) {
+  const li = e.target.closest('.bd-row');
+  if (!li) return;
+  const id = li.dataset.none ? null : li.dataset.cat;
+  catFilter = catFilter === id ? undefined : id;
+  renderDay();
+}
+$('#catList').onclick = toggleCatFilter;
+$('#catList').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCatFilter(e); } };
+$('#catToggle').onclick = () => {
+  const card = $('#catCard');
+  card.classList.toggle('collapsed');
+  $('#catToggle').setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
+};
 $('#incomeList').onclick = onListClick;
 $('#historyList').onclick = onListClick;
 
