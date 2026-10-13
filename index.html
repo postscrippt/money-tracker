@@ -27,9 +27,14 @@
   <main>
     <div class="page" id="page-home">
     <section class="card add">
-      <div class="seg" id="kindToggle">
-        <button type="button" data-kind="expense" class="on">Expense</button>
-        <button type="button" data-kind="income">Income</button>
+      <div class="add-top">
+        <div class="seg" id="kindToggle">
+          <button type="button" data-kind="expense" class="on">Expense</button>
+          <button type="button" data-kind="income">Income</button>
+        </div>
+        <button type="button" id="scanSlips" class="ghost small-btn" title="Add several payments from bank slip photos">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M8 12h8"/></svg>Scan slips
+        </button>
       </div>
       <form id="entryForm" autocomplete="off">
         <div class="amount-row">
@@ -67,11 +72,20 @@
             <div class="extra-panel">
               <div id="catChips" class="chips"></div>
               <input id="source" placeholder="Source (e.g. Salary, Freelance)" maxlength="40" hidden>
+              <div class="pics">
+                <div id="picsStrip" class="pics-strip"></div>
+                <label class="ghost btn pic-add">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="3.5"/><path d="M8.5 6l1.3-2h4.4l1.3 2"/></svg>
+                  Add photo / slip
+                  <input type="file" id="picInput" accept="image/*" multiple hidden>
+                </label>
+              </div>
               <div class="row">
                 <input id="date" type="date" required aria-label="Date">
                 <input id="note" placeholder="Note (optional)" maxlength="80">
                 <button type="submit" id="submitBtn" class="primary">Add</button>
                 <button type="button" id="cancelEdit" class="ghost" hidden>Cancel</button>
+                <button type="button" id="delEntry" class="danger" hidden>Delete</button>
               </div>
             </div>
           </div>
@@ -258,11 +272,42 @@
     </div>
   </dialog>
 
+  <dialog id="bulk">
+    <div class="dlg">
+      <div class="dlg-head">
+        <h2>Add payments from slips</h2>
+        <button type="button" class="icon-btn" id="bulkClose" aria-label="Close">×</button>
+      </div>
+      <p class="muted">Choose your bank slip photos or screenshots. The amount and date are read from each one on this device; check them, then add everything at once.</p>
+      <div class="row">
+        <label class="ghost btn">Choose slips<input type="file" id="bulkInput" accept="image/*" multiple hidden></label>
+        <select id="bulkCatAll" aria-label="Category for all slips"></select>
+      </div>
+      <p class="muted bulk-status" id="bulkStatus" hidden></p>
+      <ul id="bulkList" class="list slips"></ul>
+      <div class="row bulk-foot">
+        <button type="button" id="bulkGo" class="primary" disabled>Add payments</button>
+        <button type="button" id="bulkCancel" class="ghost">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="viewer">
+    <div class="dlg">
+      <div class="dlg-head">
+        <h2>Attached photos</h2>
+        <button type="button" class="icon-btn" id="viewerClose" aria-label="Close">×</button>
+      </div>
+      <div id="viewerBody" class="viewer-body"></div>
+    </div>
+  </dialog>
+
   <div id="tooltip" class="tooltip" hidden></div>
   <div id="toast" class="toast" hidden></div>
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="app.js"></script>
+  <script src="slips.js"></script>
   <script src="sync.js"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

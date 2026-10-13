@@ -96,6 +96,12 @@ function defaultState() {
   };
 }
 
+// Ids of the photos attached to an entry (the pictures themselves stay on the device, see slips.js).
+const picsOf = e => {
+  const p = Array.isArray(e.pics) ? e.pics.filter(x => typeof x === 'string').slice(0, 8) : [];
+  return p.length ? { pics: p } : {};
+};
+
 function normalize(d) {
   const base = defaultState();
   if (!d || typeof d !== 'object') return base;
@@ -112,9 +118,9 @@ function normalize(d) {
     version: 1,
     categories: cats.length ? cats : base.categories,
     expenses: arr(d.expenses).filter(e => e && isDate(e.date) && amt(e))
-      .map(e => ({ id: String(e.id || uid()), date: e.date, amount: Number(e.amount), categoryId: e.categoryId || null, note: String(e.note || ''), u: Number(e.u) || 0 })),
+      .map(e => ({ id: String(e.id || uid()), date: e.date, amount: Number(e.amount), categoryId: e.categoryId || null, note: String(e.note || ''), u: Number(e.u) || 0, ...picsOf(e) })),
     income: arr(d.income).filter(e => e && isDate(e.date) && amt(e))
-      .map(e => ({ id: String(e.id || uid()), date: e.date, amount: Number(e.amount), source: String(e.source || 'Income'), note: String(e.note || ''), u: Number(e.u) || 0 })),
+      .map(e => ({ id: String(e.id || uid()), date: e.date, amount: Number(e.amount), source: String(e.source || 'Income'), note: String(e.note || ''), u: Number(e.u) || 0, ...picsOf(e) })),
     fixed: arr(d.fixed).filter(f => f && isMonth(f.start) && amt(f))
       .map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Fixed'), amount: Number(f.amount), dueDay: Math.min(Math.max(parseInt(f.dueDay, 10) || 1, 1), 31), start: f.start, end: isMonth(f.end) ? f.end : null, u: Number(f.u) || 0 })),
     deleted,
@@ -296,9 +302,9 @@ function renderHistory() {
     }
     if (e.k === 'expense') {
       const c = catOf(e.categoryId);
-      html += row(c.color, c.name, e.note, money(e.amount), `expense:${e.id}`);
+      html += row(c.color, c.name, e.note, money(e.amount), `expense:${e.id}`, e.pics);
     } else {
-      html += row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`);
+      html += row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`, e.pics);
     }
   });
   $('#historyList').innerHTML = html;
@@ -701,7 +707,7 @@ function renderDay() {
   $('#dayTitle').textContent = r.title + filterNote;
   $('#dayTotal').textContent = shown.length ? money(sum(shown)) : '';
 
-  const entry = e => { const c = catOf(e.categoryId); return row(c.color, c.name, e.note, money(e.amount), `expense:${e.id}`); };
+  const entry = e => { const c = catOf(e.categoryId); return row(c.color, c.name, e.note, money(e.amount), `expense:${e.id}`, e.pics); };
   let html = '';
   if (mode === 'day') {
     const d = parse(selected), n = daysIn(d.getFullYear(), d.getMonth());
@@ -709,7 +715,7 @@ function renderDay() {
     const fx = catFilter === undefined ? fixedIn(d.getFullYear(), d.getMonth()).filter(f => Math.min(f.dueDay, n) === d.getDate()) : [];
     html = [
       ...shown.map(entry),
-      ...inc.map(e => row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`)),
+      ...inc.map(e => row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`, e.pics)),
       ...fx.map(f => `<li class="fixed-row"><i class="dot" style="background:${FIXED_SHADES[0]}"></i><div class="li-main"><b>${esc(f.name)}</b><small>Fixed cost due</small></div><span class="amt">${money(f.amount)}</span></li>`),
     ].join('');
   } else {
@@ -725,14 +731,17 @@ function renderDay() {
   $('#dayList').innerHTML = html || '<li class="empty">Nothing logged for this period.<br>Add something above.</li>';
 }
 
-function row(color, title, note, amountHtml, ref) {
+const CLIP_ICON = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10 17.5a2 2 0 0 1-3-3l7.5-7.5"/></svg>';
+
+// Deleting happens inside the edit box (✎), so a row only has the edit button (and a paperclip when it has photos).
+function row(color, title, note, amountHtml, ref, pics) {
   return `<li>
     <i class="dot" style="background:${color}"></i>
     <div class="li-main"><b>${esc(title)}</b>${note ? `<small>${esc(note)}</small>` : ''}</div>
     <span class="amt">${amountHtml}</span>
     <span class="acts">
+      ${pics && pics.length ? `<button type="button" class="icon-btn" data-pics="${esc(ref)}" aria-label="View attached photos" title="Attached photos">${CLIP_ICON}</button>` : ''}
       <button type="button" class="icon-btn" data-edit="${esc(ref)}" aria-label="Edit">✎</button>
-      <button type="button" class="icon-btn" data-del="${esc(ref)}" aria-label="Delete">×</button>
     </span>
   </li>`;
 }
@@ -755,7 +764,7 @@ function renderIncome() {
   const list = incomeIn(view.y, view.m).sort((a, b) => (a.date < b.date ? 1 : -1));
   $('#incomeTotal').textContent = list.length ? money(sum(list)) : '';
   $('#incomeList').innerHTML = list.length
-    ? list.map(e => row('var(--pos)', e.source, [shortDate(parse(e.date)), e.note].filter(Boolean).join(' · '), `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`)).join('')
+    ? list.map(e => row('var(--pos)', e.source, [shortDate(parse(e.date)), e.note].filter(Boolean).join(' · '), `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`, e.pics)).join('')
     : '<li class="empty">No income this month. Switch the form on Home to “Income” to add some.</li>';
 }
 
@@ -791,6 +800,7 @@ function setKind(k) {
   document.querySelectorAll('#kindToggle button').forEach(b => b.classList.toggle('on', b.dataset.kind === k));
   $('#catChips').hidden = k !== 'expense';
   $('#source').hidden = k !== 'income';
+  $('#scanSlips').hidden = k !== 'expense';
 }
 
 // The categories, date and note stay tucked away until you start typing an amount.
@@ -827,6 +837,8 @@ function resetForm() {
   $('#date').value = selected;
   $('#submitBtn').textContent = 'Add';
   $('#cancelEdit').hidden = true;
+  $('#delEntry').hidden = true;
+  PicForm.set([]);
   $('.add').classList.remove('editing');
 }
 
@@ -846,6 +858,8 @@ function startEdit(ref) {
   else $('#source').value = rec.source || '';
   $('#submitBtn').textContent = 'Save';
   $('#cancelEdit').hidden = false;
+  $('#delEntry').hidden = false;
+  PicForm.set(rec.pics || []);
   $('.add').classList.add('editing');
   $('.add').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('#amount').focus({ preventScroll: true });
@@ -897,7 +911,7 @@ function exportCsv() {
 let toastTimer;
 function toast(msg, undo) {
   const el = $('#toast');
-  const host = $('#settings').open ? $('#settings') : document.body;
+  const host = document.querySelector('dialog[open]') || document.body; // a modal hides everything outside it
   if (el.parentNode !== host) host.appendChild(el);
   el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
   el.classList.toggle('has-undo', !!undo);
@@ -972,8 +986,9 @@ $('#entryForm').onsubmit = e => {
   const note = $('#note').value.trim();
   const id = editing ? editing.id : uid();
   const u = Date.now();
-  if (kind === 'expense') upsert(state.expenses, { id, date, amount, categoryId: chosenCat, note, u });
-  else upsert(state.income, { id, date, amount, source: $('#source').value.trim() || 'Income', note, u });
+  const pics = picsOf({ pics: PicForm.ids() });
+  if (kind === 'expense') upsert(state.expenses, { id, date, amount, categoryId: chosenCat, note, u, ...pics });
+  else upsert(state.income, { id, date, amount, source: $('#source').value.trim() || 'Income', note, u, ...pics });
   const wasEditing = !!editing;
   save();
   editing = null;
@@ -982,6 +997,7 @@ $('#entryForm').onsubmit = e => {
   toast(wasEditing ? 'Saved' : `Added ${money(amount)}${kind === 'expense' ? ' · ' + catOf(chosenCat).name : ''}`);
 };
 $('#cancelEdit').onclick = resetForm;
+$('#delEntry').onclick = () => { if (editing) deleteEntry(`${editing.kind}:${editing.id}`); };
 
 /* ---------- calculator ---------- */
 const hasMath = v => /[+\-*/×÷−()]/.test(String(v).trim().replace(/^[-−]/, ''));
@@ -1051,7 +1067,11 @@ function onListClick(e) {
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.edit) startEdit(b.dataset.edit);
-  else if (b.dataset.del) deleteEntry(b.dataset.del);
+  else if (b.dataset.pics) {
+    const [k, id] = b.dataset.pics.split(':');
+    const rec = (k === 'expense' ? state.expenses : state.income).find(x => x.id === id);
+    if (rec) Viewer.show(rec.pics || []);
+  }
 }
 $('#dayList').onclick = onListClick;
 

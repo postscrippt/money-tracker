@@ -140,13 +140,14 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 50%; }
 }
 .calc-result { font-size: 18px; color: var(--muted); white-space: nowrap; }
 .calc-toggle {
-  flex: none; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line);
-  background: #fff; color: var(--muted); display: grid; place-items: center;
+  flex: none; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); padding: 0;
+  background: #fff; color: var(--muted); display: flex; align-items: center; justify-content: center;
 }
+.calc-toggle svg, .calc-pad svg { display: block; flex: none; }
 .calc-toggle:hover { color: var(--ink); }
 .calc-toggle.on { background: var(--ink); border-color: var(--ink); color: #fff; }
-.calc-pad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; max-width: 340px; }
-.calc-pad button { height: 46px; border: 0; border-radius: 12px; background: var(--soft); font-size: 18px; display: grid; place-items: center; }
+.calc-pad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; width: 100%; max-width: 340px; margin-inline: auto; }
+.calc-pad button { height: 46px; padding: 0; border: 0; border-radius: 12px; background: var(--soft); font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 @media (max-width: 480px) {
   #amount { font-size: 30px; }
   .amount-row .cur { font-size: 26px; }
@@ -157,6 +158,47 @@ input[type=color]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .calc-pad .eq { background: var(--ink); color: #fff; font-weight: 700; }
 #date { flex: 0 1 170px; }
 #note { flex: 2 1 160px; }
+
+.add-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.small-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; font-size: 13px; }
+select {
+  background: var(--soft); border: 1px solid transparent; border-radius: 12px; padding: 10px 12px; min-width: 0; font-size: 16px;
+}
+select:focus { outline: none; border-color: var(--ink); background: #fff; }
+.extra-panel select { background: #fff; }
+
+/* photos attached to an entry */
+.pics { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pics-strip { display: contents; }
+.pic { position: relative; width: 54px; height: 54px; flex: none; }
+.pic-img { width: 100%; height: 100%; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.pic-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pic-x {
+  position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--ink); color: #fff; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.pic.missing { display: flex; align-items: center; justify-content: center; text-align: center; border: 1px dashed var(--line); border-radius: 10px; font-size: 9px; color: var(--muted); background: #fff; padding: 2px; }
+.pic-add { gap: 7px; padding: 8px 12px; font-size: 13px; background: #fff; border: 1px solid var(--line); }
+.list .clip { color: var(--accent); }
+
+/* bulk slips + viewer */
+#bulk .row { margin-bottom: 4px; }
+#bulk select { flex: 1 1 140px; }
+.bulk-status { margin: 10px 0 0; }
+.slips { margin-top: 12px; }
+.list.slips li.slip { align-items: flex-start; gap: 10px; padding: 12px 0; }
+.slip.busy .slip-f { opacity: .6; }
+.slip-img { flex: none; width: 64px; height: 88px; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--soft); }
+.slip-img img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.slip-f { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.slip-f .row { flex-wrap: nowrap; }
+.slip-f .row > input { flex: 1 1 0; width: 0; }
+.slip-f input[type=date] { flex: 1 1 0; }
+.slip-state { font-size: 12px; }
+.bulk-foot { position: sticky; bottom: 0; background: #fff; padding-top: 14px; margin-top: 4px; }
+.viewer-body { display: grid; gap: 12px; margin-top: 14px; }
+.viewer-body img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+#bulk, #viewer { overflow-y: auto; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
