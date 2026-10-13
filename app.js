@@ -25,6 +25,17 @@ const safeColor = c => (/^#[0-9a-f]{3,8}$/i.test(c) ? c : UNCATEGORIZED.color);
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const isMonth = s => typeof s === 'string' && /^\d{4}-\d{2}$/.test(s);
 
+// Icons for the small buttons. Drawn as shapes (not ‹ › × text characters) so they sit exactly in the middle of their button on every device and font.
+const icon = (d, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${d}</svg>`;
+const ICON = {
+  prev: icon('<path d="M14.5 6l-6 6 6 6"/>'),
+  next: icon('<path d="M9.5 6l6 6-6 6"/>'),
+  x: icon('<path d="M7 7l10 10M17 7L7 17"/>'),
+  xSmall: icon('<path d="M7 7l10 10M17 7L7 17"/>', 12),
+  up: icon('<path d="M6 14l6-6 6 6"/>'),
+  edit: icon('<path d="M4 20l1-4L16 5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/>', 17),
+};
+
 function money(n, compact) {
   const neg = n < 0;
   n = Math.abs(n);
@@ -276,9 +287,9 @@ function render() {
 // Month switcher shown at the top of the Insights and Income pages.
 function renderPageNav() {
   document.querySelectorAll('.pm-nav').forEach(el => {
-    el.innerHTML = `<button type="button" class="icon-btn" data-pm="-1" aria-label="Previous month">‹</button>
+    el.innerHTML = `<button type="button" class="icon-btn" data-pm="-1" aria-label="Previous month">${ICON.prev}</button>
       <button type="button" class="pm-label" data-pm="0" title="Back to this month">${esc(monthName(view.y, view.m))}</button>
-      <button type="button" class="icon-btn" data-pm="1" aria-label="Next month">›</button>`;
+      <button type="button" class="icon-btn" data-pm="1" aria-label="Next month">${ICON.next}</button>`;
   });
 }
 
@@ -741,7 +752,7 @@ function row(color, title, note, amountHtml, ref, pics) {
     <span class="amt">${amountHtml}</span>
     <span class="acts">
       ${pics && pics.length ? `<button type="button" class="icon-btn" data-pics="${esc(ref)}" aria-label="View attached photos" title="Attached photos">${CLIP_ICON}</button>` : ''}
-      <button type="button" class="icon-btn" data-edit="${esc(ref)}" aria-label="Edit">✎</button>
+      <button type="button" class="icon-btn" data-edit="${esc(ref)}" aria-label="Edit">${ICON.edit}</button>
     </span>
   </li>`;
 }
@@ -755,7 +766,7 @@ function renderFixed() {
         <i class="dot" style="background:${FIXED_SHADES[i % FIXED_SHADES.length]}"></i>
         <div class="li-main"><b>${esc(f.name)}</b><small>Due on the ${ordinal(f.dueDay)}</small></div>
         <span class="amt">${money(f.amount)}</span>
-        <button type="button" class="icon-btn" data-fx-del="${esc(f.id)}" title="Remove from this month on" aria-label="Remove ${esc(f.name)}">×</button>
+        <button type="button" class="icon-btn" data-fx-del="${esc(f.id)}" title="Remove from this month on" aria-label="Remove ${esc(f.name)}">${ICON.x}</button>
       </li>`).join('')
     : '<li class="empty">No fixed costs yet. Add rent, gas, phone…</li>';
 }
@@ -776,7 +787,7 @@ function renderSettings() {
       <input type="color" value="${c.color}" data-k="color" aria-label="Color for ${esc(c.name)}">
       <input value="${esc(c.name)}" data-k="name" maxlength="24" aria-label="Category name">
       <span class="count">${count} item${count === 1 ? '' : 's'}</span>
-      <button type="button" class="icon-btn" data-cat-del ${state.categories.length < 2 ? 'disabled' : ''} aria-label="Delete ${esc(c.name)}">×</button>
+      <button type="button" class="icon-btn" data-cat-del ${state.categories.length < 2 ? 'disabled' : ''} aria-label="Delete ${esc(c.name)}">${ICON.x}</button>
     </li>`;
   }).join('');
   $('#newCatColor').value = PALETTE[state.categories.length % PALETTE.length];
@@ -827,7 +838,18 @@ function showPage(name) {
   render();
 }
 
+// Editing happens in a pop-up on top of whatever page you're on: the add form moves into it and back,
+// so the page underneath (and your scroll position) is left exactly as it was.
+const editDlg = $('#editDlg'), formHome = $('#entryForm').parentNode;
+function closeEdit() {
+  if (editDlg.open) editDlg.close();
+  if ($('#entryForm').parentNode !== formHome) formHome.appendChild($('#entryForm'));
+}
+editDlg.addEventListener('close', () => { if (!editDlg.open && editing) resetForm(); }); // Esc / back gesture = cancel
+$('#editClose').onclick = () => resetForm();
+
 function resetForm() {
+  closeEdit();
   setFormOpen(false);
   editing = null;
   $('#amount').value = '';
@@ -839,14 +861,16 @@ function resetForm() {
   $('#cancelEdit').hidden = true;
   $('#delEntry').hidden = true;
   PicForm.set([]);
-  $('.add').classList.remove('editing');
 }
 
 function startEdit(ref) {
   const [k, id] = ref.split(':');
   const rec = (k === 'expense' ? state.expenses : state.income).find(x => x.id === id);
   if (!rec) return;
-  if (page !== 'home') showPage('home');
+  if (editing) resetForm();
+  $('#editBody').appendChild($('#entryForm'));
+  $('#editTitle').textContent = k === 'expense' ? 'Edit payment' : 'Edit income';
+  if (!editDlg.open) editDlg.showModal();
   setFormOpen(true);
   setKind(k);
   editing = { kind: k, id };
@@ -860,8 +884,6 @@ function startEdit(ref) {
   $('#cancelEdit').hidden = false;
   $('#delEntry').hidden = false;
   PicForm.set(rec.pics || []);
-  $('.add').classList.add('editing');
-  $('.add').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('#amount').focus({ preventScroll: true });
 }
 
@@ -911,7 +933,7 @@ function exportCsv() {
 let toastTimer;
 function toast(msg, undo) {
   const el = $('#toast');
-  const host = document.querySelector('dialog[open]') || document.body; // a modal hides everything outside it
+  const host = [...document.querySelectorAll('dialog[open]')].pop() || document.body; // a modal hides everything outside it
   if (el.parentNode !== host) host.appendChild(el);
   el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
   el.classList.toggle('has-undo', !!undo);
@@ -992,8 +1014,9 @@ $('#entryForm').onsubmit = e => {
   const wasEditing = !!editing;
   save();
   editing = null;
-  selectDay(date);
+  if (!wasEditing) selectDay(date); // an edit leaves the page and day you were looking at alone
   resetForm();
+  if (wasEditing) render();
   toast(wasEditing ? 'Saved' : `Added ${money(amount)}${kind === 'expense' ? ' · ' + catOf(chosenCat).name : ''}`);
 };
 $('#cancelEdit').onclick = resetForm;

@@ -80,8 +80,8 @@ const PicForm = (() => {
     const urls = await Promise.all(ids.map(id => Pics.url(id).catch(() => null)));
     if (mine !== drawn) return;
     strip.innerHTML = ids.map((id, i) => urls[i]
-      ? `<span class="pic"><button type="button" class="pic-img" data-view="${i}" aria-label="View photo ${i + 1}"><img src="${urls[i]}" alt=""></button><button type="button" class="pic-x" data-rm="${i}" aria-label="Remove photo ${i + 1}">×</button></span>`
-      : `<span class="pic missing" title="This photo is saved on another device"><span>On another device</span><button type="button" class="pic-x" data-rm="${i}" aria-label="Remove photo ${i + 1}">×</button></span>`
+      ? `<span class="pic"><button type="button" class="pic-img" data-view="${i}" aria-label="View photo ${i + 1}"><img src="${urls[i]}" alt=""></button><button type="button" class="pic-x" data-rm="${i}" aria-label="Remove photo ${i + 1}">${ICON.xSmall}</button></span>`
+      :`<span class="pic missing" title="This photo is saved on another device"><span>On another device</span><button type="button" class="pic-x" data-rm="${i}" aria-label="Remove photo ${i + 1}">${ICON.xSmall}</button></span>`
     ).join('');
   }
 
@@ -262,7 +262,7 @@ const Bulk = (() => {
         <select data-f="cat" aria-label="Category">${catOptions(r.cat)}</select>
         <input data-f="note" placeholder="Note (optional)" maxlength="80" aria-label="Note" value="${esc(r.note)}">
       </div>
-      <button type="button" class="icon-btn" data-rm aria-label="Remove slip">×</button>
+      <button type="button" class="icon-btn" data-rm aria-label="Remove slip">${ICON.x}</button>
     </li>`;
   }
 
