@@ -153,7 +153,11 @@
               <button type="button" data-mode="day">Daily</button>
             </div>
           </div>
-          <div class="pie-period muted" id="piePeriod"></div>
+          <div class="pie-nav">
+            <button type="button" class="icon-btn" id="piePrev" aria-label="Previous period">‹</button>
+            <div class="pie-period muted" id="piePeriod"></div>
+            <button type="button" class="icon-btn" id="pieNext" aria-label="Next period">›</button>
+          </div>
           <div class="card-head">
             <span></span>
             <label class="toggle" id="pieFixedLabel"><input type="checkbox" id="pieFixed"> Include fixed</label>

@@ -1047,6 +1047,13 @@ $('#barChart').onclick = e => {
   if (g) selectDay(barGroups[Number(g.dataset.i)].key);
 };
 $('#pieFixed').onchange = renderPie;
+// ‹ › move the chart to the previous / next day, week or month (same selection the rest of the app uses).
+function stepPie(dir) {
+  if (pieMode === 'month') goMonth(new Date(view.y, view.m + dir, 1));
+  else selectDay(ymd(addDays(parse(selected), dir * (pieMode === 'week' ? 7 : 1))));
+}
+$('#piePrev').onclick = () => stepPie(-1);
+$('#pieNext').onclick = () => stepPie(1);
 document.querySelectorAll('#pieMode button').forEach(b => b.onclick = () => {
   pieMode = b.dataset.mode;
   document.querySelectorAll('#pieMode button').forEach(x => x.classList.toggle('on', x === b));

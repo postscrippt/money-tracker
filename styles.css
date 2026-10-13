@@ -364,7 +364,8 @@ svg text { font-family: inherit; }
   #catCard.collapsed .cat-body { display: none; }
   #catCard.collapsed .cat-toggle { margin-bottom: 0; }
 }
-.pie-period { font-size: 13px; margin: -4px 0 8px; }
+.pie-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 8px; }
+.pie-period { font-size: 14px; font-weight: 700; color: var(--ink); text-align: center; flex: 1; }
 .muted { color: var(--muted); font-size: 13px; }
 
 /* ---------- settings dialog ---------- */
