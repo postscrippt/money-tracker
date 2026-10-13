@@ -194,7 +194,8 @@ function save() {
 }
 
 const stamp = r => { r.u = Date.now(); return r; };
-const tomb = id => { state.deleted[id] = Date.now(); };
+// `after` is the record's own edit time, so a deletion is never older than the record (clock differences between devices).
+const tomb = (id, after = 0) => { state.deleted[id] = Math.max(Date.now(), after + 1); };
 const snapshot = () => JSON.stringify(state);
 const undoTo = snap => () => { replaceState(normalize(JSON.parse(snap))); save(); render(); };
 
@@ -857,7 +858,7 @@ function deleteEntry(ref) {
   if (!rec) return;
   const snap = snapshot();
   state[key] = state[key].filter(x => x.id !== id);
-  tomb(id);
+  tomb(id, rec.u);
   if (editing && editing.id === id) resetForm();
   save();
   render();

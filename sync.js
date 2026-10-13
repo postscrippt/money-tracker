@@ -24,6 +24,26 @@ const Sync = (() => {
   const setDirty = on => { try { on ? localStorage.setItem(DIRTY, '1') : localStorage.removeItem(DIRTY); } catch (e) { /* ignore */ } };
   const isDirty = () => { try { return localStorage.getItem(DIRTY) === '1'; } catch (e) { return false; } };
 
+  // Which account the data on this device belongs to. Data from before signing in has no owner.
+  const OWNER = 'money-tracker-owner', GUEST = 'money-tracker-guest-backup';
+  const owner = () => { try { return localStorage.getItem(OWNER); } catch (e) { return null; } };
+  const setOwner = id => { try { id ? localStorage.setItem(OWNER, id) : localStorage.removeItem(OWNER); } catch (e) { /* ignore */ } };
+  function backupGuest(s) {
+    if (!(s.expenses.length || s.income.length || s.fixed.length)) return;
+    try { localStorage.setItem(GUEST, JSON.stringify(s)); } catch (e) { /* ignore */ }
+    setTimeout(() => toast('Signed in. Entries made before signing in were not added to your account (backup kept on this device).'), 0);
+  }
+
+  // Order-independent form of a data set, so two devices holding the same data always compare equal
+  // (otherwise differences in list order made them keep rewriting each other's copy forever).
+  function canon(doc) {
+    return JSON.stringify(doc, (k, v) => {
+      if (Array.isArray(v)) return v.some(x => x && x.id !== undefined) ? [...v].sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0)) : v;
+      if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).sort(([p], [q]) => (p < q ? -1 : 1)));
+      return v;
+    });
+  }
+
   function setStatus(s) { status = s; renderUI(); }
 
   async function pull() {
@@ -42,18 +62,23 @@ const Sync = (() => {
       for (let attempt = 0; attempt < 5; attempt++) {
         const remote = await pull();
         const remoteDoc = remote ? normalize(remote.doc) : null;
-        const before = JSON.stringify(state);
+        const before = canon(state);
         let merged;
         if (!remoteDoc) merged = normalize({ ...state, pristine: false });
-        else if (state.pristine) merged = remoteDoc; // fresh device: just take the cloud copy
-        else merged = mergeStates(state, remoteDoc);
+        else if (state.pristine || owner() !== user.id) {
+          // Fresh device, or data typed in before signing in: the account's copy is left untouched.
+          // Anything entered as a guest is kept as a backup instead of being merged into the account.
+          if (!state.pristine) backupGuest(state);
+          merged = remoteDoc;
+          setOwner(user.id);
+        } else merged = mergeStates(state, remoteDoc);
         merged.pristine = false;
 
         state = merged;
         persistLocal();
-        if (JSON.stringify(state) !== before) render();
+        if (canon(state) !== before) render();
 
-        if (remoteDoc && JSON.stringify(remoteDoc) === JSON.stringify(merged)) {
+        if (remoteDoc && canon(remoteDoc) === canon(merged)) {
           version = remote.version; // cloud already has everything
           break;
         }
@@ -69,6 +94,7 @@ const Sync = (() => {
         if (res.data && res.data.length) { version = res.data[0].version; break; }
         // Another device wrote in between: loop to pull and merge again.
       }
+      setOwner(user.id);
       setDirty(false);
       lastSynced = new Date();
       setStatus('synced');
@@ -139,6 +165,7 @@ const Sync = (() => {
     }
     await client.auth.signOut();
     // The data is safe in the cloud; clear it from this device.
+    setOwner(null);
     state = defaultState();
     persistLocal();
     resetForm();
