@@ -348,6 +348,10 @@ svg text { font-family: inherit; }
 .list .acts { display: flex; flex: none; }
 #fixedForm { margin-top: 14px; }
 #fixedForm #fxDay { flex: 0 1 100px; }
+.fx-var { flex: 1 1 100%; font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.fx-var input { width: auto; flex: none; }
+.fx-amt { flex: none; width: 110px; text-align: right; }
+.fx-amt.pending { border-color: var(--accent); }
 .day-total { font-weight: 700; }
 .home-grid .card-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pay { margin-top: 16px; }

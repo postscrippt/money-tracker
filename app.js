@@ -132,8 +132,15 @@ function normalize(d) {
       .map(e => ({ id: String(e.id || uid()), date: e.date, amount: Number(e.amount), categoryId: e.categoryId || null, note: String(e.note || ''), u: Number(e.u) || 0, ...picsOf(e) })),
     income: arr(d.income).filter(e => e && isDate(e.date) && amt(e))
       .map(e => ({ id: String(e.id || uid()), date: e.date, amount: Number(e.amount), source: String(e.source || 'Income'), note: String(e.note || ''), u: Number(e.u) || 0, ...picsOf(e) })),
-    fixed: arr(d.fixed).filter(f => f && isMonth(f.start) && amt(f))
-      .map(f => ({ id: String(f.id || uid()), name: String(f.name || 'Fixed'), amount: Number(f.amount), dueDay: Math.min(Math.max(parseInt(f.dueDay, 10) || 1, 1), 31), start: f.start, end: isMonth(f.end) ? f.end : null, u: Number(f.u) || 0 })),
+    fixed: arr(d.fixed).filter(f => f && isMonth(f.start) && (f.variable === true || amt(f)))
+      .map(f => {
+        const months = {};
+        if (f.variable === true && f.months && typeof f.months === 'object') {
+          Object.entries(f.months).forEach(([k, v]) => { if (isMonth(k) && Number(v) > 0) months[k] = Number(v); });
+        }
+        const variable = f.variable === true ? { variable: true, months } : {};
+        return { id: String(f.id || uid()), name: String(f.name || 'Fixed'), amount: Number(f.amount) || 0, dueDay: Math.min(Math.max(parseInt(f.dueDay, 10) || 1, 1), 31), start: f.start, end: isMonth(f.end) ? f.end : null, u: Number(f.u) || 0, ...variable };
+      }),
     deleted,
     settings: { ...base.settings, ...(d.settings && typeof d.settings === 'object' ? d.settings : {}) },
     settingsU: Number(d.settingsU) || 0,
@@ -236,7 +243,9 @@ const expensesIn = (y, m) => { const p = ymKey(y, m) + '-'; return state.expense
 const incomeIn = (y, m) => { const p = ymKey(y, m) + '-'; return state.income.filter(e => e.date.startsWith(p)); };
 const fixedIn = (y, m) => {
   const k = ymKey(y, m);
+  // A "changes every month" cost only counts in months where its amount was entered; nothing carries over.
   return state.fixed.filter(f => f.start <= k && (!f.end || f.end >= k))
+    .map(f => (f.variable ? { ...f, amount: f.months[k] || 0, pending: !(f.months[k] > 0) } : f))
     .sort((a, b) => a.dueDay - b.dueDay || a.name.localeCompare(b.name));
 };
 const isCurrentMonth = (y, m) => { const t = new Date(); return t.getFullYear() === y && t.getMonth() === m; };
@@ -523,7 +532,7 @@ function renderPie() {
   $('#pieFixedLabel').hidden = pieMode !== 'month';
   let slices = partsFor(state.expenses.filter(e => e.date >= r.from && e.date <= r.to));
   if (pieMode === 'month' && $('#pieFixed').checked) {
-    fixedIn(y, m).forEach((f, i) => slices.push({ name: f.name, color: FIXED_SHADES[i % FIXED_SHADES.length], amount: f.amount }));
+    fixedIn(y, m).filter(f => f.amount > 0).forEach((f, i) => slices.push({ name: f.name, color: FIXED_SHADES[i % FIXED_SHADES.length], amount: f.amount }));
   }
   slices = slices.filter(s => s.amount > 0).sort((a, b) => b.amount - a.amount);
   const total = sum(slices);
@@ -727,7 +736,7 @@ function renderDay() {
     html = [
       ...shown.map(entry),
       ...inc.map(e => row('var(--pos)', e.source, e.note, `<span class="pos">+${money(e.amount)}</span>`, `income:${e.id}`, e.pics)),
-      ...fx.map(f => `<li class="fixed-row"><i class="dot" style="background:${FIXED_SHADES[0]}"></i><div class="li-main"><b>${esc(f.name)}</b><small>Fixed cost due</small></div><span class="amt">${money(f.amount)}</span></li>`),
+      ...fx.map(f => `<li class="fixed-row"><i class="dot" style="background:${FIXED_SHADES[0]}"></i><div class="li-main"><b>${esc(f.name)}</b><small>Fixed cost due</small></div><span class="amt">${f.pending ? 'Not entered' : money(f.amount)}</span></li>`),
     ].join('');
   } else {
     let last = '';
@@ -764,8 +773,10 @@ function renderFixed() {
   $('#fixedList').innerHTML = list.length
     ? list.map((f, i) => `<li>
         <i class="dot" style="background:${FIXED_SHADES[i % FIXED_SHADES.length]}"></i>
-        <div class="li-main"><b>${esc(f.name)}</b><small>Due on the ${ordinal(f.dueDay)}</small></div>
-        <span class="amt">${money(f.amount)}</span>
+        <div class="li-main"><b>${esc(f.name)}</b><small>Due on the ${ordinal(f.dueDay)}${f.variable ? ' · changes monthly' : ''}</small></div>
+        ${f.variable
+          ? `<input class="fx-amt${f.pending ? ' pending' : ''}" data-fx-amt="${esc(f.id)}" type="number" inputmode="decimal" step="0.01" min="0" placeholder="฿ this month" value="${f.pending ? '' : f.amount}" aria-label="${esc(f.name)} amount for ${monthName(view.y, view.m)}">`
+          : `<span class="amt">${money(f.amount)}</span>`}
         <button type="button" class="icon-btn" data-fx-del="${esc(f.id)}" title="Remove from this month on" aria-label="Remove ${esc(f.name)}">${ICON.x}</button>
       </li>`).join('')
     : '<li class="empty">No fixed costs yet. Add rent, gas, phone…</li>';
@@ -925,7 +936,10 @@ function exportCsv() {
     .forEach(e => rows.push(['Expense', e.date, catOf(e.categoryId).name, e.amount, e.note]));
   [...state.income].sort((a, b) => a.date.localeCompare(b.date))
     .forEach(e => rows.push(['Income', e.date, e.source, e.amount, e.note]));
-  state.fixed.forEach(f => rows.push(['Fixed (monthly)', `${f.start} to ${f.end || 'now'}`, f.name, f.amount, `Due on the ${ordinal(f.dueDay)}`]));
+  state.fixed.forEach(f => {
+    if (!f.variable) return rows.push(['Fixed (monthly)', `${f.start} to ${f.end || 'now'}`, f.name, f.amount, `Due on the ${ordinal(f.dueDay)}`]);
+    Object.keys(f.months).sort().forEach(k => rows.push(['Fixed (varies)', k, f.name, f.months[k], `Due on the ${ordinal(f.dueDay)}`]));
+  });
   download(`money-${ymd(new Date())}.csv`, '﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n'), 'text/csv;charset=utf-8');
 }
 
@@ -1126,14 +1140,36 @@ $('#historyList').onclick = onListClick;
 $('#fixedForm').onsubmit = e => {
   e.preventDefault();
   const name = $('#fxName').value.trim();
-  const amount = Math.round(parseFloat($('#fxAmount').value) * 100) / 100;
-  if (!name || !(amount > 0)) return;
+  const variable = $('#fxVar').checked;
+  const amount = Math.round((parseFloat($('#fxAmount').value) || 0) * 100) / 100;
+  if (!name || (!variable && !(amount > 0))) return;
   const dueDay = Math.min(Math.max(parseInt($('#fxDay').value, 10) || 1, 1), 31);
-  state.fixed.push({ id: uid(), name, amount, dueDay, start: ymKey(view.y, view.m), end: null, u: Date.now() });
+  const k = ymKey(view.y, view.m);
+  state.fixed.push({ id: uid(), name, amount: variable ? 0 : amount, dueDay, start: k, end: null, u: Date.now(),
+    ...(variable ? { variable: true, months: amount > 0 ? { [k]: amount } : {} } : {}) });
   save();
   e.target.reset();
   render();
   toast(`${name} added from ${monthName(view.y, view.m)} on`);
+};
+
+$('#fxVar').onchange = e => {
+  $('#fxAmount').required = !e.target.checked;
+  $('#fxAmount').placeholder = e.target.checked ? '฿ This month (optional)' : '฿ Amount';
+};
+
+// Enter this month's amount for a cost that changes every month (like electricity).
+$('#fixedList').onchange = e => {
+  const inp = e.target.closest('[data-fx-amt]');
+  if (!inp) return;
+  const f = state.fixed.find(x => x.id === inp.dataset.fxAmt);
+  if (!f || !f.variable) return;
+  const v = Math.round((parseFloat(inp.value) || 0) * 100) / 100;
+  const k = ymKey(view.y, view.m);
+  if (v > 0) f.months[k] = v; else delete f.months[k];
+  stamp(f);
+  save();
+  render();
 };
 
 $('#fixedList').onclick = e => {

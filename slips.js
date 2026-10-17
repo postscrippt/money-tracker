@@ -207,6 +207,47 @@ const SlipText = (() => {
   };
 })();
 
+/* Guess a category for a slip. First choice is memory: any vendor (note) already used on a past
+   payment maps to the category it was last filed under, so correcting one slip teaches the next.
+   Failing that, common words on the slip are matched to category names. */
+const Vendors = (() => {
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9฀-๿]+/g, '');
+  const WORDS = [
+    [/food|eat|dining|restaurant|cafe|coffee|meal|อาหาร/i, /restaurant|7-?eleven|cafe|coffee|kfc|mcdonald|starbucks|pizza|sushi|bistro|kitchen|noodle|bakery|ร้านอาหาร|ก๋วยเตี๋ยว|กาแฟ|ข้าว/i],
+    [/transport|travel|taxi|commut|car/i, /grab|bolt|taxi|bts|mrt|airport|shell|ptt|petrol|fuel|gas station|parking|toll|แท็กซี่|น้ำมัน|ทางด่วน/i],
+    [/grocer|market|supermarket/i, /lotus|big ?c|tesco|makro|villa market|gourmet|supermarket|top.?s|foodland|ท็อปส์|โลตัส/i],
+    [/shop|cloth|retail/i, /lazada|shopee|central|uniqlo|h&m|zara|robinson|mall|ช้อปปี้|ลาซาด้า/i],
+    [/fun|entertain|leisure|movie/i, /cinema|major|netflix|spotify|steam|karaoke|concert|ticket|โรงหนัง/i],
+    [/health|medic|pharm|doctor/i, /hospital|clinic|pharmacy|boots|watsons|dental|โรงพยาบาล|คลินิก|ร้านยา/i],
+    [/bill|util|phone|electric|water|rent|internet/i, /electric|waterworks|\bais\b|\bdtac\b|\btrue\b|truemove|\bmea\b|\bpea\b|\bpwa\b|internet|invoice|bill pay|การไฟฟ้า|ประปา/i],
+  ];
+
+  function memory() {
+    const map = new Map();
+    [...state.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach(e => {
+      const k = norm(e.note);
+      if (k.length >= 3 && state.categories.some(c => c.id === e.categoryId)) map.set(k, e.categoryId);
+    });
+    return map;
+  }
+
+  // Returns { cat, why } or null.
+  function guess(text, note, mem = memory()) {
+    const nk = norm(note), tk = norm(text);
+    if (nk.length >= 3 && mem.has(nk)) return { cat: mem.get(nk), why: 'remembered vendor' };
+    if (nk.length >= 3) for (const [k, cat] of mem) if (k.includes(nk) || nk.includes(k)) return { cat, why: 'remembered vendor' };
+    for (const [k, cat] of mem) if (k.length >= 4 && tk.includes(k)) return { cat, why: 'remembered vendor' };
+    const hay = `${note} ${text}`;
+    for (const [catRe, wordRe] of WORDS) {
+      if (!wordRe.test(hay)) continue;
+      const c = state.categories.find(x => catRe.test(x.name));
+      if (c) return { cat: c.id, why: 'matched wording' };
+    }
+    return null;
+  }
+  return { guess, memory };
+})();
+
 const Ocr = (() => {
   const SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
   let loading;
@@ -244,10 +285,18 @@ const Bulk = (() => {
     if (r.status === 'reading') return 'Reading…';
     const amt = calc(r.amount);
     if (r.status === 'failed' && !r.touched) return "Couldn't read this one. Fill it in.";
-    if (Number.isFinite(amt) && state.expenses.some(e => e.date === r.date && e.amount === amt)) return 'Looks like one you already added.';
+    if (isDup(r)) return r.addAnyway ? 'Possible duplicate. Will be added anyway.' : 'Possible duplicate. Skipped unless you tick Add anyway.';
     if (r.dateGuessed && !r.touched) return 'Date not found on the slip. Check it.';
     if (!(amt > 0)) return 'Enter the amount.';
-    return 'Check the details.';
+    return r.why ? `Check the details. Category: ${r.why}.` : 'Check the details.';
+  }
+
+  // Same amount on the same day as a saved payment, or as an earlier slip in this batch.
+  function isDup(r) {
+    const amt = calc(r.amount);
+    if (!(amt > 0) || !isDate(r.date)) return false;
+    if (state.expenses.some(e => e.date === r.date && e.amount === amt)) return true;
+    return rows.some(x => x !== r && rows.indexOf(x) < rows.indexOf(r) && x.date === r.date && calc(x.amount) === amt);
   }
 
   function rowHtml(r) {
@@ -260,7 +309,8 @@ const Bulk = (() => {
           <input data-f="date" type="date" aria-label="Date" value="${esc(r.date)}">
         </div>
         <select data-f="cat" aria-label="Category">${catOptions(r.cat)}</select>
-        <input data-f="note" placeholder="Note (optional)" maxlength="80" aria-label="Note" value="${esc(r.note)}">
+        <input data-f="note" placeholder="Vendor / note (remembered for next time)" maxlength="80" aria-label="Note" value="${esc(r.note)}">
+        <label class="check slip-dup" hidden><input type="checkbox" data-f="addAnyway"> Add anyway</label>
       </div>
       <button type="button" class="icon-btn" data-rm aria-label="Remove slip">${ICON.x}</button>
     </li>`;
@@ -271,6 +321,9 @@ const Bulk = (() => {
     if (!li) return;
     li.querySelector('.slip-state').textContent = stateText(r);
     li.classList.toggle('busy', r.status === 'queued' || r.status === 'reading');
+    const dup = r.status !== 'queued' && r.status !== 'reading' && isDup(r);
+    li.querySelector('.slip-dup').hidden = !dup;
+    li.classList.toggle('dup', dup && !r.addAnyway);
   }
 
   function draw() {
@@ -280,12 +333,14 @@ const Bulk = (() => {
   }
 
   function summary() {
-    const ok = rows.filter(r => r.status !== 'queued' && r.status !== 'reading');
+    const ok = rows.filter(r => r.status !== 'queued' && r.status !== 'reading' && !skipped(r));
     const total = ok.reduce((a, r) => a + (calc(r.amount) > 0 ? calc(r.amount) : 0), 0);
+    const n = rows.filter(r => !skipped(r)).length;
     const btn = $('#bulkGo');
-    btn.disabled = !rows.length || running;
-    btn.textContent = rows.length ? `Add ${rows.length} payment${rows.length === 1 ? '' : 's'}${total ? ' · ' + money(total) : ''}` : 'Add payments';
+    btn.disabled = !n || running;
+    btn.textContent = n ? `Add ${n} payment${n === 1 ? '' : 's'}${total ? ' · ' + money(total) : ''}` : 'Add payments';
   }
+  const skipped = r => !r.addAnyway && isDup(r);
 
   function say(msg) {
     $('#bulkStatus').hidden = !msg;
@@ -297,16 +352,23 @@ const Bulk = (() => {
     if (found.amount && !r.touched) r.amount = String(found.amount);
     if (found.date && !r.touched) { r.date = found.date; r.dateGuessed = false; }
     if (found.note && !r.touched && !r.note) r.note = found.note;
+    if (!r.catTouched) {
+      const g = Vendors.guess(found.text, r.note, mem);
+      if (g) { r.cat = g.cat; r.why = g.why; }
+    }
     const li = liOf(r);
     if (!li) return;
+    li.querySelector('[data-f=cat]').value = r.cat;
     li.querySelector('[data-f=amount]').value = r.amount;
     li.querySelector('[data-f=date]').value = r.date;
     li.querySelector('[data-f=note]').value = r.note;
   }
 
+  let mem;
   async function readAll() {
     if (running) return;
     running = true;
+    mem = Vendors.memory();
     summary();
     let worker;
     try {
@@ -320,7 +382,7 @@ const Bulk = (() => {
         say(`Reading slips… (${rows.filter(x => x.status === 'done' || x.status === 'failed').length + 1} of ${rows.length})`);
         try {
           const { data } = await worker.recognize(r.blob);
-          const found = SlipText.parse(data.text);
+          const found = { ...SlipText.parse(data.text), text: data.text };
           r.status = found.amount ? 'done' : 'failed';
           if (!rows.includes(r)) continue;
           fill(r, found);
@@ -376,10 +438,12 @@ const Bulk = (() => {
       if (li) { li.scrollIntoView({ block: 'center' }); li.querySelector('[data-f=amount]').focus(); }
       return;
     }
+    const keep = rows.filter(r => !skipped(r)), dropped = rows.length - keep.length;
+    if (!keep.length) return;
     $('#bulkGo').disabled = true;
     const snap = snapshot();
     let lost = 0, total = 0, latest = '';
-    for (const r of rows) {
+    for (const r of keep) {
       const id = uid(), pid = uid(), amount = calc(r.amount);
       let pics = {};
       try { await Pics.put(pid, r.blob); pics = { pics: [pid] }; } catch (err) { lost++; }
@@ -387,12 +451,12 @@ const Bulk = (() => {
       total += amount;
       if (r.date > latest) latest = r.date;
     }
-    const n = rows.length;
+    const n = keep.length, skip = dropped ? ` (${dropped} duplicate${dropped === 1 ? '' : 's'} skipped)` : '';
     save();
     close();
     selectDay(latest);
     if (lost) toast(`Added ${n} payments, but the slip pictures couldn't be saved on this device`);
-    else toast(`Added ${n} payment${n === 1 ? '' : 's'} · ${money(total)}`, undoTo(snap));
+    else toast(`Added ${n} payment${n === 1 ? '' : 's'} · ${money(total)}${skip}`, undoTo(snap));
   }
 
   $('#scanSlips').onclick = () => { reset(); $('#bulkCatAll').innerHTML = catOptions(defaultCat()); dlgEl.showModal(); };
@@ -401,7 +465,7 @@ const Bulk = (() => {
   dlgEl.addEventListener('close', reset);
   $('#bulkGo').onclick = commit;
   $('#bulkCatAll').onchange = e => {
-    rows.forEach(r => { r.cat = e.target.value; });
+    rows.forEach(r => { r.cat = e.target.value; r.catTouched = true; r.why = ''; });
     list.querySelectorAll('[data-f=cat]').forEach(s => { s.value = e.target.value; });
   };
 
@@ -409,9 +473,14 @@ const Bulk = (() => {
     const li = e.target.closest('.slip'), f = e.target.dataset.f;
     const r = li && find(li);
     if (!r || !f) return;
-    r[f] = e.target.value;
+    r[f] = f === 'addAnyway' ? e.target.checked : e.target.value;
     if (f === 'amount' || f === 'date') { r.touched = true; r.dateGuessed = false; }
-    paint(r);
+    if (f === 'cat') { r.catTouched = true; r.why = ''; }
+    if (f === 'note' && !r.catTouched) {
+      const g = Vendors.guess('', r.note);
+      if (g) { r.cat = g.cat; r.why = g.why; li.querySelector('[data-f=cat]').value = g.cat; }
+    }
+    rows.forEach(paint);
     summary();
   });
   list.addEventListener('click', e => {
@@ -421,6 +490,7 @@ const Bulk = (() => {
       URL.revokeObjectURL(r.url);
       rows = rows.filter(x => x !== r);
       li.remove();
+      rows.forEach(paint);
       summary();
     } else if (e.target.closest('[data-view]')) {
       $('#viewerBody').innerHTML = `<img src="${r.url}" alt="Slip">`;
