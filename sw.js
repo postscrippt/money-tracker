@@ -1,9 +1,9 @@
-'use strict';
+﻿'use strict';
 
 /* Offline support. The app files are cached on first visit. While online, the newest copy is fetched
    (and the cache refreshed); with no connection the cached copy is used. Calls to the sync service
    are never touched here. */
-const CACHE = 'money-tracker-v5';
+const CACHE = 'money-tracker-v6';
 const OCR_CACHE = 'money-tracker-ocr'; // slip reader code and language data, kept once downloaded
 const OCR_HOSTS = ['cdn.jsdelivr.net', 'tessdata.projectnaptha.com'];
 const SHELL = [
