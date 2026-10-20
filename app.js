@@ -245,7 +245,11 @@ const fixedIn = (y, m) => {
   const k = ymKey(y, m);
   // A "changes every month" cost only counts in months where its amount was entered; nothing carries over.
   return state.fixed.filter(f => f.start <= k && (!f.end || f.end >= k))
-    .map(f => (f.variable ? { ...f, amount: f.months[k] || 0, pending: !(f.months[k] > 0) } : f))
+    .map(f => {
+      if (!f.variable) return f;
+      const prev = Object.keys(f.months).filter(x => x < k).sort().pop();
+      return { ...f, amount: f.months[k] || 0, pending: !(f.months[k] > 0), hint: prev ? f.months[prev] : 0 };
+    })
     .sort((a, b) => a.dueDay - b.dueDay || a.name.localeCompare(b.name));
 };
 const isCurrentMonth = (y, m) => { const t = new Date(); return t.getFullYear() === y && t.getMonth() === m; };
@@ -775,7 +779,7 @@ function renderFixed() {
         <i class="dot" style="background:${FIXED_SHADES[i % FIXED_SHADES.length]}"></i>
         <div class="li-main"><b>${esc(f.name)}</b><small>Due on the ${ordinal(f.dueDay)}${f.variable ? ' · changes monthly' : ''}</small></div>
         ${f.variable
-          ? `<input class="fx-amt${f.pending ? ' pending' : ''}" data-fx-amt="${esc(f.id)}" type="number" inputmode="decimal" step="0.01" min="0" placeholder="฿ this month" value="${f.pending ? '' : f.amount}" aria-label="${esc(f.name)} amount for ${monthName(view.y, view.m)}">`
+          ? `<input class="fx-amt${f.pending ? ' pending' : ''}" data-fx-amt="${esc(f.id)}" type="number" inputmode="decimal" step="0.01" min="0" placeholder="${f.hint ? 'last: ' + f.hint : '฿ this month'}" value="${f.pending ? '' : f.amount}" aria-label="${esc(f.name)} amount for ${monthName(view.y, view.m)}">`
           : `<span class="amt">${money(f.amount)}</span>`}
         <button type="button" class="icon-btn" data-fx-del="${esc(f.id)}" title="Remove from this month on" aria-label="Remove ${esc(f.name)}">${ICON.x}</button>
       </li>`).join('')
