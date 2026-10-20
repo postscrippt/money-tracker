@@ -357,9 +357,9 @@ function renderHeadline() {
     : '';
   $('#headline').innerHTML = `
     <div class="hl-top">
-      <button type="button" class="icon-btn" data-hl-step="-1" aria-label="Previous ${day ? 'day' : 'month'}">&lsaquo;</button>
+      <button type="button" class="icon-btn" data-hl-step="-1" aria-label="Previous ${day ? 'day' : 'month'}">${ICON.prev}</button>
       <div class="hl-label">${label}</div>
-      <button type="button" class="icon-btn" data-hl-step="1" aria-label="Next ${day ? 'day' : 'month'}">&rsaquo;</button>
+      <button type="button" class="icon-btn" data-hl-step="1" aria-label="Next ${day ? 'day' : 'month'}">${ICON.next}</button>
       <span class="seg hl-mode" role="group" aria-label="Show total for">
         <button type="button" data-hl-mode="month" class="${day ? '' : 'on'}">Month</button>
         <button type="button" data-hl-mode="day" class="${day ? 'on' : ''}">Day</button>
