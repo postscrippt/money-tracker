@@ -779,7 +779,9 @@ function renderFixed() {
     ? list.map((f, i) => `<li>
         <i class="dot" style="background:${FIXED_SHADES[i % FIXED_SHADES.length]}"></i>
         <div class="li-main"><b>${esc(f.name)}</b><small>Due on the ${ordinal(f.dueDay)}${f.variable ? ' · changes monthly' : ''}</small></div>
-        ${f.variable
+        ${f.variable && !f.pending
+          ? `<button type="button" class="amt amt-edit" data-fx-edit="${esc(f.id)}" title="Tap to change this month's amount" aria-label="${esc(f.name)} ${money(f.amount)} for ${monthName(view.y, view.m)}. Change amount">${money(f.amount)}</button>`
+          : f.variable
           ? `<input class="fx-amt${f.pending ? ' pending' : ''}" data-fx-amt="${esc(f.id)}" type="number" inputmode="decimal" step="0.01" min="0" placeholder="${f.hint ? 'last: ' + f.hint : '฿ this month'}" value="${f.pending ? '' : f.amount}" aria-label="${esc(f.name)} amount for ${monthName(view.y, view.m)}">`
           : `<span class="amt">${money(f.amount)}</span>`}
         <button type="button" class="pill-btn" data-fx-var="${esc(f.id)}" title="${f.variable ? 'Use the same amount every month' : 'Enter a new amount each month'}">${f.variable ? 'Varies' : 'Fixed'}</button>
@@ -1210,6 +1212,21 @@ function toggleVariable(f) {
 }
 
 $('#fixedList').onclick = e => {
+  const ed = e.target.closest('[data-fx-edit]');
+  if (ed) {
+    const f = state.fixed.find(x => x.id === ed.dataset.fxEdit), k = ymKey(view.y, view.m);
+    if (!f) return;
+    const inp = document.createElement('input');
+    inp.className = 'fx-amt';
+    inp.type = 'number'; inp.inputMode = 'decimal'; inp.step = '0.01'; inp.min = '0';
+    inp.value = f.months[k] || '';
+    inp.setAttribute('data-fx-amt', f.id);
+    inp.setAttribute('aria-label', `${f.name} amount for ${monthName(view.y, view.m)}`);
+    inp.onblur = () => setTimeout(() => { if (inp.isConnected) render(); }, 0); // unchanged: back to plain amount
+    ed.replaceWith(inp);
+    inp.focus(); inp.select();
+    return;
+  }
   const t = e.target.closest('[data-fx-var]');
   if (t) {
     const f = state.fixed.find(x => x.id === t.dataset.fxVar);
