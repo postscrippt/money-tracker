@@ -336,17 +336,35 @@ function renderHistory() {
 }
 
 // Big total at the top: everything spent in the viewed month, split into day-to-day and fixed.
+// The top total can show the viewed month or the selected day (hlMode). The arrows (and a swipe on the
+// header) step by month or by day to match, so months can be switched without scrolling to the calendar.
+let hlMode = 'month'; // 'month' | 'day'
+try { if (localStorage.getItem('mt-hl') === 'day') hlMode = 'day'; } catch (e) { /* ignore */ }
+
 function renderHeadline() {
   const { y, m } = view;
-  const spent = sum(expensesIn(y, m));
-  const fixed = sum(fixedIn(y, m));
+  const day = hlMode === 'day';
+  const d = parse(selected), n = daysIn(d.getFullYear(), d.getMonth());
+  const spent = day ? sum(state.expenses.filter(e => e.date === selected)) : sum(expensesIn(y, m));
+  const fixed = day ? sum(fixedIn(d.getFullYear(), d.getMonth()).filter(f => Math.min(f.dueDay, n) === d.getDate())) : sum(fixedIn(y, m));
   const total = spent + fixed;
   const month = new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long' });
+  const label = day
+    ? `Spent on ${d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}${d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''}`
+    : `Spent in ${month}${y !== new Date().getFullYear() ? ' ' + y : ''}`;
   const bar = total
     ? `<span style="flex:${spent} 0 0;background:var(--accent)"></span><span style="flex:${fixed} 0 0;background:${FIXED_SHADES[0]}"></span>`
     : '';
   $('#headline').innerHTML = `
-    <div class="hl-label">Spent in ${month}${y !== new Date().getFullYear() ? ' ' + y : ''}</div>
+    <div class="hl-top">
+      <button type="button" class="icon-btn" data-hl-step="-1" aria-label="Previous ${day ? 'day' : 'month'}">&lsaquo;</button>
+      <div class="hl-label">${label}</div>
+      <button type="button" class="icon-btn" data-hl-step="1" aria-label="Next ${day ? 'day' : 'month'}">&rsaquo;</button>
+      <span class="seg hl-mode" role="group" aria-label="Show total for">
+        <button type="button" data-hl-mode="month" class="${day ? '' : 'on'}">Month</button>
+        <button type="button" data-hl-mode="day" class="${day ? 'on' : ''}">Day</button>
+      </span>
+    </div>
     <div class="hl-total">${money(total)}</div>
     <div class="hl-bar">${bar}</div>
     <div class="hl-sub">
@@ -1010,6 +1028,31 @@ document.addEventListener('click', e => {
   const step = Number(b.dataset.pm);
   goMonth(step === 0 ? new Date() : new Date(view.y, view.m + step, 1));
 });
+function stepHeadline(dir) {
+  if (hlMode === 'day') { const d = parse(selected); selectDay(ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + dir))); }
+  else goMonth(new Date(view.y, view.m + dir, 1));
+}
+
+const hlEl = $('#headline');
+hlEl.addEventListener('click', e => {
+  const s = e.target.closest('[data-hl-step]'), md = e.target.closest('[data-hl-mode]');
+  if (s) stepHeadline(Number(s.dataset.hlStep));
+  else if (md) {
+    hlMode = md.dataset.hlMode;
+    try { localStorage.setItem('mt-hl', hlMode); } catch (err) { /* ignore */ }
+    renderHeadline();
+  }
+});
+// Swipe the header: left = next, right = previous.
+let swipe = null;
+hlEl.addEventListener('touchstart', e => { swipe = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }, { passive: true });
+hlEl.addEventListener('touchend', e => {
+  if (!swipe) return;
+  const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+  swipe = null;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 2) stepHeadline(dx < 0 ? 1 : -1);
+}, { passive: true });
+
 function goMonth(d) {
   view = { y: d.getFullYear(), m: d.getMonth() };
   selected = isCurrentMonth(view.y, view.m) ? ymd(new Date()) : ymd(d);

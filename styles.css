@@ -34,6 +34,10 @@ h3 { font-size: 12px; margin: 26px 0 10px; color: var(--muted); font-weight: 400
 .top { padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: 18px; }
 .top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .headline { padding-top: 18px; }
+.hl-top { display: flex; align-items: center; gap: 4px; touch-action: pan-y; }
+.hl-top .icon-btn { font-size: 22px; line-height: 1; }
+.hl-mode { margin-left: auto; }
+.hl-mode button { padding: 4px 12px; font-size: 13px; }
 .hl-label { font-size: 13px; color: var(--muted); }
 .hl-total { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; margin: 2px 0 10px; }
 .hl-bar { display: flex; gap: 2px; height: 6px; max-width: 420px; border-radius: 6px; overflow: hidden; background: var(--soft); }
