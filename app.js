@@ -293,6 +293,7 @@ function render() {
   renderCalendar();
   renderDay();
   renderFixed();
+  renderBills();
   renderIncome();
   if ($('#settings').open) renderSettings();
 }
@@ -786,6 +787,18 @@ function renderFixed() {
     : '<li class="empty">No fixed costs yet. Add rent, gas, phone…</li>';
 }
 
+// Home prompt: monthly-varying costs still missing an amount for the viewed month (not for future months).
+function renderBills() {
+  const future = view.y > now.getFullYear() || (view.y === now.getFullYear() && view.m > now.getMonth());
+  const todo = future ? [] : fixedIn(view.y, view.m).filter(f => f.pending);
+  $('#billsCard').hidden = !todo.length;
+  $('#billsList').innerHTML = todo.map(f => `<li>
+      <i class="dot" style="background:${FIXED_SHADES[0]}"></i>
+      <div class="li-main"><b>${esc(f.name)}</b><small>Due on the ${ordinal(f.dueDay)}</small></div>
+      <input class="fx-amt pending" data-fx-amt="${esc(f.id)}" type="number" inputmode="decimal" step="0.01" min="0" placeholder="${f.hint ? 'last: ' + f.hint : '฿ this month'}" aria-label="${esc(f.name)} amount for ${monthName(view.y, view.m)}">
+    </li>`).join('');
+}
+
 function renderIncome() {
   const list = incomeIn(view.y, view.m).sort((a, b) => (a.date < b.date ? 1 : -1));
   $('#incomeTotal').textContent = list.length ? money(sum(list)) : '';
@@ -1163,7 +1176,7 @@ $('#fxVar').onchange = e => {
 };
 
 // Enter this month's amount for a cost that changes every month (like electricity).
-$('#fixedList').onchange = e => {
+$('#fixedList').onchange = $('#billsList').onchange = e => {
   const inp = e.target.closest('[data-fx-amt]');
   if (!inp) return;
   const f = state.fixed.find(x => x.id === inp.dataset.fxAmt);
