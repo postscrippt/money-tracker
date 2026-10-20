@@ -782,6 +782,7 @@ function renderFixed() {
         ${f.variable
           ? `<input class="fx-amt${f.pending ? ' pending' : ''}" data-fx-amt="${esc(f.id)}" type="number" inputmode="decimal" step="0.01" min="0" placeholder="${f.hint ? 'last: ' + f.hint : '฿ this month'}" value="${f.pending ? '' : f.amount}" aria-label="${esc(f.name)} amount for ${monthName(view.y, view.m)}">`
           : `<span class="amt">${money(f.amount)}</span>`}
+        <button type="button" class="pill-btn" data-fx-var="${esc(f.id)}" title="${f.variable ? 'Use the same amount every month' : 'Enter a new amount each month'}">${f.variable ? 'Varies' : 'Fixed'}</button>
         <button type="button" class="icon-btn" data-fx-del="${esc(f.id)}" title="Remove from this month on" aria-label="Remove ${esc(f.name)}">${ICON.x}</button>
       </li>`).join('')
     : '<li class="empty">No fixed costs yet. Add rent, gas, phone…</li>';
@@ -1189,7 +1190,38 @@ $('#fixedList').onchange = $('#billsList').onchange = e => {
   render();
 };
 
+// Switch a cost between "same every month" and "changes every month".
+function toggleVariable(f) {
+  const k = ymKey(view.y, view.m), cur = fixedIn(view.y, view.m).find(x => x.id === f.id);
+  if (f.variable) {
+    // Back to fixed: the viewed month's amount (or the latest entered one) becomes the amount; earlier months keep theirs.
+    const latest = Object.keys(f.months).filter(x => x <= k).sort().pop();
+    f.amount = (cur && cur.amount) || (latest ? f.months[latest] : 0);
+    if (!(f.amount > 0)) return toast('Enter an amount for this month first');
+    delete f.variable; delete f.months;
+  } else {
+    // To varying: months before the viewed one keep the old amount, the viewed month starts with it, later ones are empty.
+    f.months = {};
+    for (let [y, m] = f.start.split('-').map(Number); ymKey(y, m - 1) <= k; m === 12 ? (y++, m = 1) : m++) f.months[ymKey(y, m - 1)] = f.amount;
+    if (f.amount > 0) f.months[k] = f.amount;
+    f.variable = true;
+  }
+  stamp(f);
+}
+
 $('#fixedList').onclick = e => {
+  const t = e.target.closest('[data-fx-var]');
+  if (t) {
+    const f = state.fixed.find(x => x.id === t.dataset.fxVar);
+    if (!f) return;
+    const snap = snapshot();
+    toggleVariable(f);
+    if (snapshot() === snap) return;
+    save();
+    render();
+    toast(`${f.name} ${f.variable ? 'now changes every month' : 'is now the same every month'}`, undoTo(snap));
+    return;
+  }
   const b = e.target.closest('[data-fx-del]');
   if (!b) return;
   const f = state.fixed.find(x => x.id === b.dataset.fxDel);
