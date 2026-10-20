@@ -38,6 +38,7 @@ h3 { font-size: 12px; margin: 26px 0 10px; color: var(--muted); font-weight: 400
 .hl-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; }
 .hl-top .hl-label { flex: 0 1 auto; min-width: 0; max-width: 100%; text-align: center; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hl-mode { margin-left: auto; }
+.hl-mode button { touch-action: manipulation; user-select: none; }
 .hl-mode button { padding: 4px 12px; font-size: 13px; }
 @media (max-width: 400px) { .hl-mode { flex: 1 1 100%; margin: 4px 0 0; justify-self: stretch; } .hl-mode button { flex: 1; } }
 .hl-label { font-size: 13px; color: var(--muted); }

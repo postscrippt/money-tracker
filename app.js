@@ -1034,10 +1034,16 @@ function stepHeadline(dir) {
 }
 
 const hlEl = $('#headline');
+let lastHl = { mode: '', t: 0 };
 hlEl.addEventListener('click', e => {
   const s = e.target.closest('[data-hl-step]'), md = e.target.closest('[data-hl-mode]');
   if (s) stepHeadline(Number(s.dataset.hlStep));
   else if (md) {
+    // Tapping the same button twice quickly jumps to today / this month. (Timed by hand because the
+    // first tap redraws the buttons, which can swallow a native dblclick.)
+    const t = Date.now(), twice = lastHl.mode === md.dataset.hlMode && t - lastHl.t < 400;
+    lastHl = { mode: md.dataset.hlMode, t: twice ? 0 : t };
+    if (twice) { hlMode === 'day' ? selectDay(ymd(new Date())) : goMonth(new Date()); return; }
     hlMode = md.dataset.hlMode;
     try { localStorage.setItem('mt-hl', hlMode); } catch (err) { /* ignore */ }
     renderHeadline();
